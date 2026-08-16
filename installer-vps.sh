@@ -159,25 +159,18 @@ if ! bestla_enable_pm2_startup; then
   echo "Note : configure le redémarrage automatique avec le gestionnaire de ton hébergeur si ce VPS est un conteneur sans systemd/OpenRC."
 fi
 
-# Configuration IA guidée facultative. Aucun secret n'est fourni dans le dépôt :
-# l'utilisateur autorise sa propre clé officielle via le device-flow Pollinations.
-if [ -r /dev/tty ] && [ "${BESTLA_SETUP_AI:-ask}" != "false" ]; then
-  echo
-  read -r -p "Configurer maintenant l'IA automatique (texte, image, retouche, vidéo) ? [O/n] : " setup_ai </dev/tty || setup_ai="n"
-  setup_ai="${setup_ai,,}"
-  if [ -z "$setup_ai" ] || [ "$setup_ai" = "o" ] || [ "$setup_ai" = "oui" ] || [ "$setup_ai" = "y" ] || [ "$setup_ai" = "yes" ]; then
-    node "$APP_DIR/dist/cli.js" configuration apiauto || echo "Tu pourras relancer plus tard : bestla configuration apiauto"
-  fi
-fi
+# Affiche immédiatement la liaison WhatsApp de la première session, sans passer par les journaux PM2.
+echo
+echo "Préparation de la liaison WhatsApp…"
+node "$APP_DIR/dist/cli.js" sessions liaison main 30 || echo "La liaison pourra être générée depuis : bestla → Numéros WhatsApp → Générer / afficher QR ou code"
 
 echo
 echo "✅ Bestla iA est installée et enregistrée dans PM2."
 echo "• Tape : bestla"
 echo "• Ajoute d'autres numéros : bestla puis 1"
 echo "• Vérifie : bestla statut"
-echo "• Pour afficher le QR ou le code de liaison : bestla logs live"
+echo "• QR / code de liaison : bestla → Numéros WhatsApp → Générer / afficher QR ou code"
 echo "• Dossier permanent : $APP_DIR"
 echo "• Nettoyage anciens fichiers Bestla : bestla nettoyer confirmer"
 echo "• Désinstallation complète : bash desinstaller-vps.sh confirmer"
-echo "• IA automatique : bestla → Configuration → API IA automatique"
 echo "• Dans WhatsApp : .menu"
