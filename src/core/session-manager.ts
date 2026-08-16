@@ -5,6 +5,7 @@ import makeWASocket, {
   type AnyMessageContent,
   Browsers,
   DisconnectReason,
+  proto,
   useMultiFileAuthState,
   type MiscMessageGenerationOptions,
   type WAMessage,
@@ -164,7 +165,10 @@ export class SessionManager {
       browser: Browsers.ubuntu(`${this.config.botName}-${name}`),
       markOnlineOnConnect: this.config.alwaysOnline,
       syncFullHistory: false,
-      shouldSyncHistoryMessage: () => false,
+      // Conserve les synchronisations essentielles (bootstrap, récent, mappings LID/PN)
+      // tout en refusant l'historique complet.
+      shouldSyncHistoryMessage: ({ syncType }) =>
+        syncType !== proto.HistorySync.HistorySyncType.FULL,
       generateHighQualityLinkPreview: false,
     })
 
