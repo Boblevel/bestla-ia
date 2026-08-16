@@ -103,6 +103,7 @@ export class MessageRouter {
 
     if (!parsed.isCommand && !fromMe) {
       await this.automation.inspect({
+        sessionName: runtime.name,
         chatId,
         sender,
         body,
