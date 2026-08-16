@@ -480,10 +480,31 @@ async function persistRuntimePrefix(values: Record<string, string>, prefix: stri
   await rename(temporary, databasePath)
 }
 
+function sessionRuntimeStatusPath(directory: string, name: string): string {
+  return path.join(directory, 'session-status', `${name}.json`)
+}
+
+async function clearSessionRuntimeStatus(values: Record<string, string>, name: string): Promise<void> {
+  await rm(sessionRuntimeStatusPath(dataDirectory(values), name), { force: true }).catch(() => undefined)
+}
+
 async function sessionIsLinked(directory: string, name: string): Promise<boolean> {
   try {
-    const credentials = JSON.parse(await readFile(path.join(directory, 'sessions', name, 'creds.json'), 'utf8')) as { registered?: unknown }
-    return credentials.registered === true
+    const credentials = JSON.parse(await readFile(path.join(directory, 'sessions', name, 'creds.json'), 'utf8')) as {
+      registered?: unknown
+      me?: { id?: unknown }
+    }
+    if (credentials.registered === true) return true
+    if (typeof credentials.me?.id === 'string' && credentials.me.id.trim()) return true
+  } catch {
+    // Le fichier d'authentification peut être en cours d'écriture : on vérifie aussi l'état runtime ci-dessous.
+  }
+
+  try {
+    const runtime = JSON.parse(await readFile(sessionRuntimeStatusPath(directory, name), 'utf8')) as {
+      linked?: unknown
+    }
+    return runtime.linked === true
   } catch {
     return false
   }
@@ -587,6 +608,7 @@ async function addSession(args: string[]): Promise<void> {
   phones.set(name, phone)
   modes.set(name, mode)
   await clearLinkingArtifact(environment.values, name)
+  await clearSessionRuntimeStatus(environment.values, name)
   await writeEnvironmentValues({
     SESSION_NAMES: [...sessions.map((session) => session.name), name].join(','),
     SESSION_PHONES: [...phones].map(([key, value]) => `${key}:${value}`).join(','),
@@ -625,6 +647,7 @@ async function resetSession(args: string[]): Promise<void> {
   if (!sessions.some((session) => session.name === name)) throw new Error(`Session introuvable : ${name}`)
   const sessionDirectory = path.join(dataDirectory(environment.values), 'sessions', name)
   await clearLinkingArtifact(environment.values, name)
+  await clearSessionRuntimeStatus(environment.values, name)
   if (await exists(sessionDirectory)) {
     const retiredDirectory = await retiredSessionDirectory(environment.values)
     const target = path.join(retiredDirectory, `${name}-reinitialisee-${new Date().toISOString().replace(/[:.]/g, '-')}`)
@@ -647,6 +670,7 @@ async function removeSession(args: string[]): Promise<void> {
   modes.delete(name)
   const sessionDirectory = path.join(dataDirectory(environment.values), 'sessions', name)
   await clearLinkingArtifact(environment.values, name)
+  await clearSessionRuntimeStatus(environment.values, name)
   if (await exists(sessionDirectory)) {
     const retiredDirectory = await retiredSessionDirectory(environment.values)
     await rename(sessionDirectory, path.join(retiredDirectory, `${name}-retiree-${new Date().toISOString().replace(/[:.]/g, '-')}`))
