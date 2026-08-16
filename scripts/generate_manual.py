@@ -443,7 +443,7 @@ def add_installation(story: list):
             code_block(
                 "bash <(curl -fsSL https://raw.githubusercontent.com/UTILISATEUR_GITHUB/DEPOT_GITHUB/main/install-github.sh) \\\n  --repo https://github.com/UTILISATEUR_GITHUB/DEPOT_GITHUB.git"
             ),
-            p("Le script demande le numéro WhatsApp international du propriétaire et le mode de liaison qr ou pairing. Il propose ensuite l’autorisation IA automatique : Bestla affiche un code Pollinations à valider dans le navigateur, puis reçoit le jeton serveur officiel sans copier-coller de secret. Bestla tente ensuite de créer une clé dédiée au bot, limitée aux modèles utilisés et valable jusqu’à 365 jours. Il utilise toujours le même dossier permanent <b>/root/bestla-ia/bestla-ia-bot</b> : aucune succession de dossiers v4.1, v4.2, etc."),
+            p("Le script demande le numéro WhatsApp international du propriétaire et le mode de liaison qr ou pairing. Pour l’IA, chaque installation configure sa propre clé Gemini depuis <b>bestla → Configuration & propriétaires → Gérer la clé Gemini</b>. Le panneau explique comment obtenir gratuitement une clé depuis Google AI Studio et la vérifie avant de l’enregistrer dans le fichier privé <b>.env</b>. Bestla utilise toujours le même dossier permanent <b>/root/bestla-ia/bestla-ia-bot</b> : aucune succession de dossiers v4.1, v4.2, etc."),
             p("L'installateur reconnaît Debian/Ubuntu, Fedora/RHEL/Rocky/Alma, Alpine, Arch/Manjaro, openSUSE et Void Linux. Il demande un serveur Linux maintenu avec root ou sudo. Un conteneur sans systemd/OpenRC doit disposer d'une politique de redémarrage chez son hébergeur."),
             p("Méthode B - Depuis le ZIP", "Titre2"),
             code_block(
@@ -660,14 +660,14 @@ def add_v3_features(story: list):
         [
             p("Fonctions avancées : IA, budget, médias et jeux", "Titre1"),
             p("Assistant IA automatique", "Titre2"),
-            p("La méthode recommandée utilise le device-flow officiel Pollinations. Aucune clé publique trouvée sur Internet n’est intégrée au projet : le propriétaire ouvre l’adresse affichée, saisit le code temporaire, autorise son compte, puis Bestla reçoit le jeton serveur. Lorsque le compte l’autorise, Bestla crée automatiquement une clé enfant dédiée au bot, valable jusqu’à 365 jours et limitée aux modèles openai-fast, flux, kontext et wan-fast ; sinon le jeton autorisé est conservé. Le secret final reste dans .env."),
+            p("Bestla utilise Gemini uniquement. Chaque personne qui installe le bot ajoute sa propre clé depuis le panneau : <b>bestla → Configuration & propriétaires → Gérer la clé Gemini</b>. Le guide intégré affiche l’adresse officielle <b>https://aistudio.google.com/app/apikey</b>, permet d’ajouter, tester, remplacer ou retirer la clé, puis l’enregistre uniquement dans le fichier privé <b>.env</b> du VPS."),
             code_block(
                 "bestla configuration apiauto\n"
                 "# ou : bestla → Configuration → API IA automatique"
             ),
             callout(
                 "Accès et coût des modèles",
-                "Pollinations fournit des modèles texte accessibles au niveau gratuit, dont openai-fast. Les images et surtout la vidéo peuvent consommer des crédits Pollen selon le modèle. Bestla V4 tente d’abord le fournisseur configuré ; si une génération d’image est refusée pour absence de crédit ou indisponibilité temporaire, il tente automatiquement le point d’accès image anonyme historique de Pollinations. Pour la vidéo, un clip local de secours de 5 secondes peut être créé avec FFmpeg à partir d’une image générée ou fournie. Les retouches sémantiques avancées restent dépendantes d’un fournisseur qui accepte la requête.",
+                "Bestla utilise la clé Gemini propre à l’installation. Le modèle texte par défaut est gemini-3.6-flash. Les fonctions image et vidéo utilisent les modèles Gemini configurés dans .env. Les quotas et fonctions disponibles dépendent du projet Google associé à la clé de l’utilisateur.",
                 PURPLE,
             ),
             code_block(
@@ -684,7 +684,7 @@ def add_v3_features(story: list):
             ),
             callout(
                 "Confidentialité IA",
-                "Le jeton API reste dans .env avec des permissions privées. Il n’est jamais ajouté au dépôt GitHub, au ZIP public ni aux menus WhatsApp. Avec Pollinations, la modification vidéo recrée une séquence à partir de l’image de départ de la vidéo source et de la consigne demandée ; Gemini manuel reste disponible en option pour les comptes compatibles.",
+                "La clé Gemini reste dans .env avec des permissions privées. Elle n’est jamais ajoutée au dépôt GitHub, au ZIP public ni aux menus WhatsApp. Chaque installation doit utiliser sa propre clé afin que les quotas et accès restent séparés entre utilisateurs.",
                 PURPLE,
             ),
             p("Budget privé", "Titre2"),
@@ -735,7 +735,7 @@ def add_security_and_support(story: list):
             code_block(".sauvegarde\n.nettoyerprogrammes"),
             p("Règles de sécurité essentielles", "Titre2"),
             bullet("Ne partage jamais .env ni le dossier data/sessions."),
-            bullet("Ne publie jamais une clé Pollinations, Gemini ou autre dans GitHub, WhatsApp, un ZIP public ou une capture d’écran."),
+            bullet("Ne publie jamais une clé Gemini ou une autre clé privée dans GitHub, WhatsApp, un ZIP public ou une capture d’écran."),
             bullet("Chaque personne qui installe Bestla doit utiliser sa propre clé API ; une clé publique partagée peut être bloquée et exposer le quota du propriétaire."),
             bullet("Révoque immédiatement l’appareil connecté depuis WhatsApp si une session a été exposée."),
             bullet("Teste d’abord avec un numéro secondaire et un groupe de test."),

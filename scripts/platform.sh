@@ -2,6 +2,106 @@
 # Fonctions communes d'installation pour les distributions Linux prises en charge.
 # Ce fichier est sourcé par les installateurs Bestla iA ; ne pas l'exécuter seul.
 
+
+# Barre de progression commune aux opérations longues. Le pourcentage est
+# monotone : une étape ne passe à sa valeur cible qu'une fois réellement terminée.
+BESTLA_PROGRESS_CURRENT="${BESTLA_PROGRESS_START:-0}"
+BESTLA_PROGRESS_LABEL="Préparation"
+BESTLA_PROGRESS_SPINNER_INDEX=0
+
+bestla_progress_draw() {
+  local percent="${1:-0}"
+  local label="${2:-Traitement}"
+  local spinner="${3:-}"
+  local width=28
+  local filled=$((percent * width / 100))
+  local empty=$((width - filled))
+  local bar_fill bar_empty
+  printf -v bar_fill '%*s' "$filled" ''
+  printf -v bar_empty '%*s' "$empty" ''
+  bar_fill="${bar_fill// /█}"
+  bar_empty="${bar_empty// /░}"
+  if [ -t 1 ] && [ "${TERM:-}" != "dumb" ]; then
+    printf '\r\033[2K\033[38;5;45m%s\033[0m \033[38;5;42m%3d%%\033[0m  %-34s %s' "[$bar_fill$bar_empty]" "$percent" "$label" "$spinner"
+  else
+    printf '\r[%s%s] %3d%%  %-34s %s' "$bar_fill" "$bar_empty" "$percent" "$label" "$spinner"
+  fi
+}
+
+bestla_progress_set() {
+  local target="${1:-0}"
+  local label="${2:-Traitement}"
+  local spinner=""
+  local -a spinners=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+  [ "$target" -lt "$BESTLA_PROGRESS_CURRENT" ] && target="$BESTLA_PROGRESS_CURRENT"
+  [ "$target" -gt 100 ] && target=100
+  BESTLA_PROGRESS_LABEL="$label"
+
+  if [ -t 1 ] && [ "${TERM:-}" != "dumb" ] && [ "$target" -gt "$BESTLA_PROGRESS_CURRENT" ]; then
+    while [ "$BESTLA_PROGRESS_CURRENT" -lt "$target" ]; do
+      BESTLA_PROGRESS_CURRENT=$((BESTLA_PROGRESS_CURRENT + 1))
+      spinner="${spinners[$((BESTLA_PROGRESS_SPINNER_INDEX % ${#spinners[@]}))]}"
+      BESTLA_PROGRESS_SPINNER_INDEX=$((BESTLA_PROGRESS_SPINNER_INDEX + 1))
+      bestla_progress_draw "$BESTLA_PROGRESS_CURRENT" "$BESTLA_PROGRESS_LABEL" "$spinner"
+      sleep 0.015
+    done
+  else
+    BESTLA_PROGRESS_CURRENT="$target"
+    bestla_progress_draw "$BESTLA_PROGRESS_CURRENT" "$BESTLA_PROGRESS_LABEL"
+  fi
+
+  if [ "$BESTLA_PROGRESS_CURRENT" -ge 100 ]; then
+    printf '\n'
+  fi
+}
+
+bestla_progress_target() {
+  local stage="${1:-0}"
+  local base="${BESTLA_PROGRESS_START:-0}"
+  [ "$base" -lt 0 ] && base=0
+  [ "$base" -gt 95 ] && base=95
+  printf '%d\n' $((base + ((100 - base) * stage / 100)))
+}
+
+bestla_run_progress() {
+  local target="$1"
+  local label="$2"
+  shift 2
+  local log_file status pid gap step spinner
+  local -a spinners=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+  log_file="$(mktemp -t bestla-progress.XXXXXX)"
+
+  ( "$@" ) >"$log_file" 2>&1 &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    if [ "$BESTLA_PROGRESS_CURRENT" -lt $((target - 1)) ]; then
+      gap=$((target - BESTLA_PROGRESS_CURRENT))
+      step=$(((gap + 9) / 10))
+      [ "$step" -lt 1 ] && step=1
+      BESTLA_PROGRESS_CURRENT=$((BESTLA_PROGRESS_CURRENT + step))
+      [ "$BESTLA_PROGRESS_CURRENT" -ge "$target" ] && BESTLA_PROGRESS_CURRENT=$((target - 1))
+    fi
+    spinner="${spinners[$((BESTLA_PROGRESS_SPINNER_INDEX % ${#spinners[@]}))]}"
+    BESTLA_PROGRESS_SPINNER_INDEX=$((BESTLA_PROGRESS_SPINNER_INDEX + 1))
+    bestla_progress_draw "$BESTLA_PROGRESS_CURRENT" "$label" "$spinner"
+    sleep 0.18
+  done
+
+  set +e
+  wait "$pid"
+  status=$?
+  set -e
+  if [ "$status" -ne 0 ]; then
+    printf '\n'
+    echo "Erreur pendant : $label"
+    tail -n 50 "$log_file" || true
+    rm -f "$log_file"
+    return "$status"
+  fi
+  rm -f "$log_file"
+  bestla_progress_set "$target" "$label"
+}
+
 bestla_detect_package_manager() {
   if command -v apt-get >/dev/null 2>&1; then
     printf 'apt\n'
