@@ -197,7 +197,7 @@ export const generalCommands: BotCommand[] = [
         const aliases = command.aliases?.length ? `Alias : ${command.aliases.join(', ')}` : 'Alias : aucun'
         const usage = command.usage ? ` ${command.usage}` : ''
         await ctx.reply(
-          brandedPanel(
+          `${brandedPanel(
             'FICHE COMMANDE',
             [
               `Commande : *${ctx.prefix}${command.name}${usage}*`,
@@ -206,7 +206,7 @@ export const generalCommands: BotCommand[] = [
               `Catégorie : ${command.category}`,
             ],
             ctx.config,
-          ),
+          )}\n\n✦ BY ${ctx.config.signature}`,
         )
         return
       }
@@ -236,7 +236,7 @@ export const generalCommands: BotCommand[] = [
       const latency = Math.max(0, Math.round(performance.now() - startedAt))
       if (sent?.key.remoteJid) {
         await ctx.sock.sendMessage(sent.key.remoteJid, {
-          text: `⚡ Bestla iA répond en *${latency} ms*.\n\n✦ BY ${ctx.config.signature}`,
+          text: `⚡ Réponse en *${latency} ms*.`,
           edit: sent.key,
         })
       }
@@ -248,7 +248,7 @@ export const generalCommands: BotCommand[] = [
     description: 'Affiche la durée de fonctionnement du bot.',
     category: 'Général',
     async execute(ctx) {
-      await ctx.reply(`⏱️ Bestla iA fonctionne depuis *${formatDuration(process.uptime())}*.`)
+      await ctx.reply(`⏱️ En ligne depuis *${formatDuration(process.uptime())}*.`)
     },
   },
   {
@@ -262,9 +262,7 @@ export const generalCommands: BotCommand[] = [
         brandedPanel(
           'IDENTITÉ DU BOT',
           [
-            `Nom : *${ctx.config.botName}*`,
             `Version : *${APP_VERSION}*`,
-            `Signature : *${ctx.config.signature}*`,
             `Moteur : Node.js ${process.version}`,
             `Session : ${ctx.sessionName}`,
             `Mode : ${mode}`,
@@ -364,7 +362,7 @@ export const generalCommands: BotCommand[] = [
     cooldownSeconds: 5,
     async execute(ctx) {
       if (ctx.isGroup) {
-        return void (await ctx.reply('Pour ta confidentialité, utilise cette commande dans une conversation privée avec Bestla iA.'))
+        return void (await ctx.reply('Pour ta confidentialité, utilise cette commande dans une conversation privée.'))
       }
       const requested = Number(ctx.args[0] ?? 16)
       const length = Number.isInteger(requested) ? requested : 16

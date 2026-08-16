@@ -36,7 +36,7 @@ function entryCommand(name: string, type: FinanceEntryType, label: string): BotC
     ownerOnly: true,
     cooldownSeconds: 3,
     async execute(ctx) {
-      if (!privateOwner(ctx)) return void (await ctx.reply('Pour protéger ton budget, utilise cette commande dans une conversation privée avec Bestla iA.'))
+      if (!privateOwner(ctx)) return void (await ctx.reply('Pour protéger ton budget, utilise cette commande dans une conversation privée.'))
       const amount = parseAmount(ctx.args[0])
       const raw = ctx.args.slice(1).join(' ').trim()
       if (!amount || !raw) return void (await ctx.reply(`Utilisation : ${ctx.prefix}${name} 5000 | Vente | Client site web`))
@@ -67,7 +67,7 @@ export const budgetCommands: BotCommand[] = [
     category: 'Budget',
     ownerOnly: true,
     async execute(ctx) {
-      if (!privateOwner(ctx)) return void (await ctx.reply('Pour protéger ton budget, utilise cette commande dans une conversation privée avec Bestla iA.'))
+      if (!privateOwner(ctx)) return void (await ctx.reply('Pour protéger ton budget, utilise cette commande dans une conversation privée.'))
       const month = monthFrom(ctx.args[0])
       if (!month) return void (await ctx.reply(`Utilisation : ${ctx.prefix}budget 2026-08`))
       const entries = ctx.db.listFinance(ctx.sender, month)
@@ -92,7 +92,7 @@ export const budgetCommands: BotCommand[] = [
     ownerOnly: true,
     cooldownSeconds: 5,
     async execute(ctx) {
-      if (!privateOwner(ctx)) return void (await ctx.reply('Pour protéger ton budget, utilise cette commande dans une conversation privée avec Bestla iA.'))
+      if (!privateOwner(ctx)) return void (await ctx.reply('Pour protéger ton budget, utilise cette commande dans une conversation privée.'))
       const month = monthFrom(ctx.args[0])
       if (!month) return void (await ctx.reply(`Utilisation : ${ctx.prefix}historiquebudget 2026-08`))
       const entries = ctx.db.listFinance(ctx.sender, month).slice(0, 25)
@@ -111,7 +111,7 @@ export const budgetCommands: BotCommand[] = [
     category: 'Budget',
     ownerOnly: true,
     async execute(ctx) {
-      if (!privateOwner(ctx)) return void (await ctx.reply('Pour protéger ton budget, utilise cette commande dans une conversation privée avec Bestla iA.'))
+      if (!privateOwner(ctx)) return void (await ctx.reply('Pour protéger ton budget, utilise cette commande dans une conversation privée.'))
       const id = ctx.args[0]
       if (!id) return void (await ctx.reply(`Utilisation : ${ctx.prefix}supprimerbudget identifiant`))
       const removed = await ctx.db.removeFinance(id, ctx.sender)
@@ -126,7 +126,7 @@ export const budgetCommands: BotCommand[] = [
     ownerOnly: true,
     cooldownSeconds: 15,
     async execute(ctx) {
-      if (!privateOwner(ctx)) return void (await ctx.reply('Pour protéger ton budget, utilise cette commande dans une conversation privée avec Bestla iA.'))
+      if (!privateOwner(ctx)) return void (await ctx.reply('Pour protéger ton budget, utilise cette commande dans une conversation privée.'))
       if (ctx.args[0]?.toLowerCase() !== 'confirmer') {
         return void (await ctx.reply(`Cette action est définitive. Confirme avec ${ctx.prefix}effacerbudget confirmer`))
       }

@@ -73,7 +73,7 @@ export const generativeMediaCommands: BotCommand[] = [
         await ctx.send({
           image: generated.buffer,
           mimetype: generated.mimetype,
-          caption: `🎨 Image générée par ${ctx.config.botName}\n\n✦ BY ${ctx.config.signature}`,
+          caption: '🎨 Image générée.',
         })
       } catch (error) {
         await mediaFailure(ctx, error)
@@ -98,7 +98,7 @@ export const generativeMediaCommands: BotCommand[] = [
         await ctx.send({
           image: generated.buffer,
           mimetype: generated.mimetype,
-          caption: `🪄 Image modifiée par ${ctx.config.botName}\n\n✦ BY ${ctx.config.signature}`,
+          caption: '🪄 Image modifiée.',
         })
       } catch (error) {
         await mediaFailure(ctx, error)
@@ -121,7 +121,7 @@ export const generativeMediaCommands: BotCommand[] = [
         await ctx.send({
           video: generated.buffer,
           mimetype: generated.mimetype,
-          caption: `🎬 Vidéo générée par ${ctx.config.botName}\n\n✦ BY ${ctx.config.signature}`,
+          caption: '🎬 Vidéo générée.',
         })
       } catch (error) {
         await mediaFailure(ctx, error)
@@ -146,7 +146,7 @@ export const generativeMediaCommands: BotCommand[] = [
         await ctx.send({
           video: generated.buffer,
           mimetype: generated.mimetype,
-          caption: `🎞️ Animation générée par ${ctx.config.botName}\n\n✦ BY ${ctx.config.signature}`,
+          caption: '🎞️ Animation générée.',
         })
       } catch (error) {
         await mediaFailure(ctx, error)
@@ -175,7 +175,7 @@ export const generativeMediaCommands: BotCommand[] = [
         await ctx.send({
           video: generated.buffer,
           mimetype: generated.mimetype,
-          caption: `🎞️ Vidéo modifiée par ${ctx.config.botName}\n\n✦ BY ${ctx.config.signature}`,
+          caption: '🎞️ Vidéo modifiée.',
         })
       } catch (error) {
         await mediaFailure(ctx, error)

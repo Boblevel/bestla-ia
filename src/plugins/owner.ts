@@ -11,7 +11,7 @@ function megabytes(value: number): string {
 
 async function privateTarget(ctx: Parameters<BotCommand['execute']>[0]): Promise<string | undefined> {
   if (ctx.isGroup) {
-    await ctx.reply('Pour éviter une action accidentelle dans un groupe, utilise cette commande dans une conversation privée avec Bestla iA.')
+    await ctx.reply('Pour éviter une action accidentelle dans un groupe, utilise cette commande dans une conversation privée.')
     return undefined
   }
   const target = ctx.targetUser()
@@ -107,12 +107,12 @@ ${ctx.prefix}commande liste`))
   },
   {
     name: 'quitter',
-    description: 'Fait quitter le groupe à Bestla iA.',
+    description: 'Quitte le groupe.',
     category: 'Propriétaire',
     ownerOnly: true,
     groupOnly: true,
     async execute(ctx) {
-      await ctx.reply('Bestla iA quitte le groupe. Au revoir 👋')
+      await ctx.reply('Je quitte le groupe. Au revoir 👋')
       await ctx.sock.groupLeave(ctx.chatId)
     },
   },
@@ -129,7 +129,7 @@ ${ctx.prefix}commande liste`))
         document,
         mimetype: 'application/json',
         fileName: `sauvegarde-bestla-${new Date().toISOString().slice(0, 10)}.json`,
-        caption: `Sauvegarde Bestla iA. Conserve ce fichier en lieu sûr.\n\n✦ BY ${ctx.config.signature}`,
+        caption: 'Sauvegarde privée. Conserve ce fichier en lieu sûr.',
       })
     },
   },
@@ -146,7 +146,7 @@ ${ctx.prefix}commande liste`))
   {
     name: 'etatserveur',
     aliases: ['sante'],
-    description: 'Affiche l’état technique de Bestla iA et du serveur.',
+    description: 'Affiche l’état technique du service et du serveur.',
     category: 'Propriétaire',
     ownerOnly: true,
     cooldownSeconds: 5,
@@ -157,7 +157,7 @@ ${ctx.prefix}commande liste`))
         brandedPanel(
           'ÉTAT TECHNIQUE',
           [
-            `Bot : *Bestla iA ${APP_VERSION}*`,
+            `Version : *${APP_VERSION}*`,
             `Session actuelle : ${ctx.sessionName}`,
             `Compte WhatsApp : ${ctx.sock.user?.id ?? 'en attente'}`,
             `Durée : ${formatDuration(process.uptime())}`,
@@ -176,7 +176,7 @@ ${ctx.prefix}commande liste`))
   {
     name: 'redemarrerbot',
     aliases: ['relancerbot'],
-    description: 'Redémarre Bestla iA via PM2 après confirmation.',
+    description: 'Redémarre le service via PM2 après confirmation.',
     usage: 'confirmer',
     category: 'Propriétaire',
     ownerOnly: true,
@@ -188,7 +188,7 @@ ${ctx.prefix}commande liste`))
       if (!process.env.pm_id) {
         return void (await ctx.reply('PM2 n’est pas détecté. Lance plutôt depuis le VPS : pm2 restart bestla-ia-bot'))
       }
-      await ctx.reply('♻️ Redémarrage demandé. PM2 relance Bestla iA dans quelques secondes.')
+      await ctx.reply('♻️ Redémarrage demandé. Le service revient dans quelques secondes.')
       const timer = setTimeout(() => process.exit(0), 800)
       timer.unref()
     },

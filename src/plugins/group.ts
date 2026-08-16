@@ -77,7 +77,7 @@ export const groupCommands: BotCommand[] = [
       for (let index = 0; index < participants.length; index += 50) {
         const batch = participants.slice(index, index + 50)
         await ctx.send({
-          text: `📣 *${title}*\n\n${batch.map(jidToMention).join(' ')}\n\n✦ BY ${ctx.config.signature}`,
+          text: `📣 *${title}*\n\n${batch.map(jidToMention).join(' ')}`,
           mentions: batch,
         })
       }

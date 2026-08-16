@@ -485,7 +485,7 @@ export const automationCommands: BotCommand[] = [
       if (!question || choices.length < 2 || choices.length > 12) {
         return void (await ctx.reply(`Utilisation : ${ctx.prefix}sondage On se réunit quand ? | Lundi | Mardi`))
       }
-      await ctx.send({ poll: { name: `${question}\n\n✦ BY ${ctx.config.signature}`, values: choices, selectableCount: 1 } })
+      await ctx.send({ poll: { name: question, values: choices, selectableCount: 1 } })
     },
   },
   {
@@ -585,7 +585,7 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
     category: 'Automatisation',
     ownerOnly: true,
     async execute(ctx) {
-      if (ctx.isGroup) return void (await ctx.reply('Consulte la file d’attente dans une conversation privée avec Bestla iA.'))
+      if (ctx.isGroup) return void (await ctx.reply('Consulte la file d’attente dans une conversation privée.'))
       const tickets = ctx.db
         .listTickets({ status: 'ouvert' })
         .filter((ticket) => ticket.subject.startsWith('[IA] '))
@@ -606,7 +606,7 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
     ownerOnly: true,
     cooldownSeconds: 3,
     async execute(ctx) {
-      if (ctx.isGroup) return void (await ctx.reply('Reprends un client depuis une conversation privée avec Bestla iA.'))
+      if (ctx.isGroup) return void (await ctx.reply('Reprends un client depuis une conversation privée.'))
       const pair = splitAtPipe(ctx.argText)
       if (!pair) return void (await ctx.reply(`Utilisation : ${ctx.prefix}reprendreclient tk12345678 | Bonjour, je reprends personnellement votre demande.`))
       const [id, response] = pair
@@ -617,7 +617,7 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
         return void (await ctx.reply(`Cette attente appartient à la session *${ticket.sessionName}*. Utilise cette session pour répondre.`))
       }
       await ctx.sock.sendMessage(ticket.chatId, {
-        text: signText(`👤 Le responsable reprend maintenant la conversation.\n\n${response.slice(0, 3_500)}`, ctx.config),
+        text: response.slice(0, 3_500),
       })
       await ctx.db.updateTicket(ticket.id, { status: 'ferme' })
       await ctx.reply(`✅ Client repris et attente *#${ticket.id}* clôturée.`)
@@ -662,7 +662,7 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
     cooldownSeconds: 5,
     async execute(ctx) {
       if (ctx.isGroup) {
-        return void (await ctx.reply('Pour protéger tes informations, utilise les tickets dans une conversation privée avec Bestla iA.'))
+        return void (await ctx.reply('Pour protéger tes informations, utilise les tickets dans une conversation privée.'))
       }
       const action = ctx.args[0]?.toLowerCase()
       if (action === 'ouvrir') {
@@ -735,7 +735,7 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
     ownerOnly: true,
     cooldownSeconds: 3,
     async execute(ctx) {
-      if (ctx.isGroup) return void (await ctx.reply('Réponds aux tickets depuis une conversation privée avec Bestla iA.'))
+      if (ctx.isGroup) return void (await ctx.reply('Réponds aux tickets depuis une conversation privée.'))
       const pair = splitAtPipe(ctx.argText)
       if (!pair) return void (await ctx.reply(`Utilisation : ${ctx.prefix}repondreticket tk12345678 | Bonjour, votre devis est prêt.`))
       const [id, response] = pair

@@ -34,7 +34,7 @@ export const whatsappCommands: BotCommand[] = [
       if (!url) return void (await ctx.reply('Photo de profil indisponible : elle est peut-être protégée par les réglages de confidentialité.'))
       try {
         const media = await safeFetchBuffer(url, ctx.config.maxMediaBytes)
-        await ctx.send({ image: media.buffer, caption: `Photo de profil de ${jidToMention(target)}.\n\n✦ BY ${ctx.config.signature}`, mentions: [target] })
+        await ctx.send({ image: media.buffer, caption: `Photo de profil de ${jidToMention(target)}.`, mentions: [target] })
       } catch {
         await ctx.reply('Impossible de récupérer cette photo de profil pour le moment.')
       }
@@ -53,7 +53,7 @@ export const whatsappCommands: BotCommand[] = [
       const number = separator === -1 ? '' : ctx.argText.slice(0, separator).trim().replace(/\D/g, '')
       const name = separator === -1 ? '' : safeContactName(ctx.argText.slice(separator + 1))
       const jid = phoneToJid(number)
-      if (!jid || !name) return void (await ctx.reply(`Utilisation : ${ctx.prefix}envoyercontact 22670000000 | RHAFF SERVICE`))
+      if (!jid || !name) return void (await ctx.reply(`Utilisation : ${ctx.prefix}envoyercontact 22670000000 | Contact`))
       const vcard = `BEGIN:VCARD\nVERSION:3.0\nFN:${name}\nTEL;type=CELL;type=VOICE;waid=${number}:${number}\nEND:VCARD`
       await ctx.send({ contacts: { displayName: name, contacts: [{ vcard }] } })
     },

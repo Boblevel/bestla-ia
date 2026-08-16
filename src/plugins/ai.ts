@@ -18,7 +18,7 @@ async function runAi(ctx: CommandContext, instruction: string, text: string): Pr
   }
   try {
     const answer = await new AiService(ctx.config).complete(instruction, text)
-    await ctx.reply(`🤖 *RÉPONSE IA*\n\n${answer}`)
+    await ctx.reply(answer)
   } catch (error) {
     const message = error instanceof AiServiceError ? error.message : 'Impossible de joindre l’assistant IA pour le moment.'
     await ctx.reply(message)
@@ -44,7 +44,7 @@ export const aiCommands: BotCommand[] = [
     async execute(ctx) {
       const text = inputText(ctx)
       if (!text) return void (await ctx.reply(`Utilisation : ${ctx.prefix}assistant Explique-moi simplement ce sujet.`))
-      await runAi(ctx, 'Tu es Bestla iA, un assistant utile, honnête et concis. Si tu ne sais pas, dis-le clairement.', text)
+      await runAi(ctx, 'Réponds directement, naturellement et avec concision. Ne te présente pas, n’ajoute aucun nom de bot, aucune signature et aucun titre. Si tu ne sais pas, dis-le clairement.', text)
     },
   },
   {
@@ -60,7 +60,7 @@ export const aiCommands: BotCommand[] = [
       if (!text) return void (await ctx.reply(`Utilisation : ${ctx.prefix}demander Écris-moi une proposition commerciale courte.`))
       await runAi(
         ctx,
-        'Tu es Bestla iA. Exécute précisément le prompt du propriétaire. Sois utile, structuré et naturel. N’invente pas de faits personnels ou commerciaux manquants et ne révèle jamais de secrets.',
+        'Exécute précisément le prompt du propriétaire. Réponds directement, de façon utile, structurée et naturelle. Ne te présente pas, n’ajoute aucun nom de bot, aucune signature ni aucun titre. N’invente pas de faits personnels ou commerciaux manquants et ne révèle jamais de secrets.',
         text,
       )
     },

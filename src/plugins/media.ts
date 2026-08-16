@@ -77,7 +77,7 @@ export const mediaCommands: BotCommand[] = [
       const media = await downloadMedia(source, ctx.config.maxMediaBytes)
       if (media.type !== 'sticker') return void (await ctx.reply('Le média sélectionné n’est pas un autocollant.'))
       const image = await sharp(media.buffer, { animated: false }).png().toBuffer()
-      await ctx.send({ image, caption: `Autocollant converti par ${ctx.config.botName}.\n\n✦ BY ${ctx.config.signature}` })
+      await ctx.send({ image, caption: 'Autocollant converti.' })
     },
   },
   {
@@ -108,7 +108,7 @@ export const mediaCommands: BotCommand[] = [
         margin: 2,
         color: { dark: '#18233A', light: '#FFFFFF' },
       })
-      await ctx.send({ image, caption: `Code QR créé par ${ctx.config.botName}.\n\n✦ BY ${ctx.config.signature}` })
+      await ctx.send({ image, caption: 'Code QR créé.' })
     },
   },
   {
@@ -123,7 +123,7 @@ export const mediaCommands: BotCommand[] = [
       if (!input) return
       const quality = Math.min(90, Math.max(20, Number(ctx.args[0] ?? 65) || 65))
       const image = await sharp(input).rotate().jpeg({ quality, mozjpeg: true }).toBuffer()
-      await ctx.send({ image, caption: `Image compressée à ${quality} %.\n\n✦ BY ${ctx.config.signature}` })
+      await ctx.send({ image, caption: `Image compressée à ${quality} %.` })
     },
   },
   {
@@ -146,7 +146,7 @@ export const mediaCommands: BotCommand[] = [
         .resize({ width, ...(height ? { height } : {}), fit: 'inside', withoutEnlargement: true })
         .png()
         .toBuffer()
-      await ctx.send({ image, caption: `Image redimensionnée par ${ctx.config.botName}.\n\n✦ BY ${ctx.config.signature}` })
+      await ctx.send({ image, caption: 'Image redimensionnée.' })
     },
   },
   {
@@ -159,7 +159,7 @@ export const mediaCommands: BotCommand[] = [
       const input = await requireImage(ctx)
       if (!input) return
       const image = await sharp(input).rotate().grayscale().jpeg({ quality: 85 }).toBuffer()
-      await ctx.send({ image, caption: `Effet noir et blanc appliqué.\n\n✦ BY ${ctx.config.signature}` })
+      await ctx.send({ image, caption: 'Effet noir et blanc appliqué.' })
     },
   },
   {
@@ -177,7 +177,7 @@ export const mediaCommands: BotCommand[] = [
         return void (await ctx.reply(`Utilisation : ${ctx.prefix}tournerimage 90`))
       }
       const image = await sharp(input).rotate(angle).png().toBuffer()
-      await ctx.send({ image, caption: `Image tournée de ${angle}°.\n\n✦ BY ${ctx.config.signature}` })
+      await ctx.send({ image, caption: `Image tournée de ${angle}°.` })
     },
   },
   {
@@ -195,7 +195,7 @@ export const mediaCommands: BotCommand[] = [
         return void (await ctx.reply(`Utilisation : ${ctx.prefix}flouimage 8 (entre 1 et 100)`))
       }
       const image = await sharp(input).rotate().blur(intensity).jpeg({ quality: 88, mozjpeg: true }).toBuffer()
-      await ctx.send({ image, caption: `Flou appliqué (intensité ${intensity}).\n\n✦ BY ${ctx.config.signature}` })
+      await ctx.send({ image, caption: `Flou appliqué (intensité ${intensity}).` })
     },
   },
   {
@@ -209,7 +209,7 @@ export const mediaCommands: BotCommand[] = [
       const input = await requireImage(ctx)
       if (!input) return
       const text = ctx.argText.trim().slice(0, 80)
-      if (!text) return void (await ctx.reply(`Utilisation : ${ctx.prefix}filigrane RHAFF SERVICE`))
+      if (!text) return void (await ctx.reply(`Utilisation : ${ctx.prefix}filigrane Mon texte`))
       const metadata = await sharp(input).metadata()
       const width = Math.max(320, Math.min(4_000, metadata.width ?? 1_080))
       const image = await sharp(input)
@@ -217,7 +217,7 @@ export const mediaCommands: BotCommand[] = [
         .composite([{ input: watermarkSvg(text, width), gravity: 'south' }])
         .jpeg({ quality: 90, mozjpeg: true })
         .toBuffer()
-      await ctx.send({ image, caption: `Filigrane ajouté.\n\n✦ BY ${ctx.config.signature}` })
+      await ctx.send({ image, caption: 'Filigrane ajouté.' })
     },
   },
   {
@@ -243,7 +243,7 @@ export const mediaCommands: BotCommand[] = [
         .resize(format.width, format.height, { fit: 'cover', position: sharp.strategy.attention })
         .jpeg({ quality: 90, mozjpeg: true })
         .toBuffer()
-      await ctx.send({ image, caption: `Image recadrée au format ${format.label}.\n\n✦ BY ${ctx.config.signature}` })
+      await ctx.send({ image, caption: `Image recadrée au format ${format.label}.` })
     },
   },
   {
@@ -277,7 +277,7 @@ export const mediaCommands: BotCommand[] = [
         .sharpen({ sigma: 1.1, m1: 1, m2: 2 })
         .jpeg({ quality: 92, mozjpeg: true })
         .toBuffer()
-      await ctx.send({ image, caption: `Image améliorée.\n\n✦ BY ${ctx.config.signature}` })
+      await ctx.send({ image, caption: 'Image améliorée.' })
     },
   },
 ]

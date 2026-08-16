@@ -36,7 +36,7 @@ async function sendAudio(ctx: CommandContext, audio: Buffer, caption: string): P
 
 async function sendVideo(ctx: CommandContext, video: Buffer, caption: string): Promise<void> {
   if (video.length > ctx.config.maxMediaBytes) throw new MediaProcessError('Le résultat est trop lourd. Essaie une vidéo plus courte ou plus légère.')
-  await ctx.send({ video, mimetype: 'video/mp4', caption: `${caption}\n\n✦ BY ${ctx.config.signature}` })
+  await ctx.send({ video, mimetype: 'video/mp4', caption })
 }
 
 function parseSeconds(value: string | undefined): number | undefined {
@@ -74,13 +74,13 @@ function textImageSvg(style: string, text: string): Buffer {
   }
   const palette = styles[style] ?? styles.neon ?? { background: '#11102b', accent: '#54F7E6', title: '#FFFFFF' }
   const lines = wrapText(text)
-  const first = lines[0] ?? 'Bestla iA'
+  const first = lines[0] ?? 'Création'
   const remaining = lines.slice(1)
   const body = remaining
     .map((line, index) => `<text x="84" y="${500 + index * 82}" font-family="Arial, sans-serif" font-size="54" font-weight="600" fill="${palette.title}">${escapeXml(line)}</text>`)
     .join('')
   return Buffer.from(
-    `<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${palette.background}"/><stop offset="1" stop-color="#000000" stop-opacity="0.18"/></linearGradient></defs><rect width="1080" height="1080" fill="url(#g)"/><circle cx="900" cy="180" r="210" fill="${palette.accent}" fill-opacity="0.16"/><rect x="72" y="72" width="936" height="936" rx="42" fill="none" stroke="${palette.accent}" stroke-width="5"/><rect x="84" y="166" width="150" height="14" rx="7" fill="${palette.accent}"/><text x="84" y="390" font-family="Arial, sans-serif" font-size="${first.length > 18 ? 82 : 104}" font-weight="800" fill="${palette.title}">${escapeXml(first)}</text>${body}<text x="84" y="932" font-family="Arial, sans-serif" font-size="28" font-weight="700" letter-spacing="3" fill="${palette.accent}">BESTLA iA • RHAFF SERVICE</text></svg>`,
+    `<svg width="1080" height="1080" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${palette.background}"/><stop offset="1" stop-color="#000000" stop-opacity="0.18"/></linearGradient></defs><rect width="1080" height="1080" fill="url(#g)"/><circle cx="900" cy="180" r="210" fill="${palette.accent}" fill-opacity="0.16"/><rect x="72" y="72" width="936" height="936" rx="42" fill="none" stroke="${palette.accent}" stroke-width="5"/><rect x="84" y="166" width="150" height="14" rx="7" fill="${palette.accent}"/><text x="84" y="390" font-family="Arial, sans-serif" font-size="${first.length > 18 ? 82 : 104}" font-weight="800" fill="${palette.title}">${escapeXml(first)}</text>${body}</svg>`,
     'utf8',
   )
 }
@@ -231,7 +231,7 @@ export const advancedMediaCommands: BotCommand[] = [
         document,
         mimetype: 'application/pdf',
         fileName: 'document-bestla-ia.pdf',
-        caption: `📄 PDF créé par ${ctx.config.botName}.\n\n✦ BY ${ctx.config.signature}`,
+        caption: '📄 PDF créé.',
       })
     },
   },
@@ -244,13 +244,13 @@ export const advancedMediaCommands: BotCommand[] = [
     cooldownSeconds: 8,
     async execute(ctx) {
       const pair = pipePair(ctx.argText)
-      if (!pair) return void (await ctx.reply(`Utilisation : ${ctx.prefix}texteimage neon | Bienvenue chez RHAFF SERVICE`))
+      if (!pair) return void (await ctx.reply(`Utilisation : ${ctx.prefix}texteimage neon | Bienvenue`))
       const [style, text] = pair
       if (!['neon', 'or', 'rose', 'ciel', 'minimal'].includes(style.toLowerCase())) {
         return void (await ctx.reply('Styles disponibles : neon, or, rose, ciel, minimal.'))
       }
       const image = await sharp(textImageSvg(style.toLowerCase(), text.slice(0, 160))).png().toBuffer()
-      await ctx.send({ image, caption: `🖼️ Création ${style.toLowerCase()} par ${ctx.config.botName}.\n\n✦ BY ${ctx.config.signature}` })
+      await ctx.send({ image, caption: `🖼️ Création ${style.toLowerCase()}.` })
     },
   },
   {
