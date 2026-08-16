@@ -746,7 +746,7 @@ async function showConfiguration(): Promise<void> {
   print(`${cyan('Rejeter appels')}   : ${displayToggle(values.REJECT_CALLS)}`)
   const geminiKey = (values.AI_API_KEY || values.MEDIA_AI_API_KEY || '').trim()
   print(`${cyan('Assistant IA')}     : ${green('Gemini')} ${geminiKey ? green('(clé configurée)') : gray('(clé manquante)')}`)
-  print(`${cyan('Modèle texte')}      : ${values.AI_MODEL || 'gemini-2.5-flash'}`)
+  print(`${cyan('Modèle texte')}      : ${values.AI_MODEL || 'gemini-3.6-flash'}`)
   print(`${cyan('Clé Gemini')}        : ${maskSecret(geminiKey)}`)
   print(`${cyan('Médias IA')}        : ${displayToggle(values.MEDIA_AI_ENABLED)} ${geminiKey ? green('(clé configurée)') : gray('(clé manquante)')}`)
   print(`${cyan('Médias IA publics')}: ${displayToggle(values.MEDIA_AI_PUBLIC)}`)
@@ -813,7 +813,7 @@ async function updateConfiguration(args: string[]): Promise<void> {
       heading('CLÉ GEMINI', 'État de la connexion Google Gemini')
       print(`${cyan('Fournisseur')} : ${green('Gemini')}`)
       print(`${cyan('Clé')}         : ${maskSecret(currentKey)}`)
-      print(`${cyan('Texte')}       : ${values.AI_MODEL || 'gemini-2.5-flash'}`)
+      print(`${cyan('Texte')}       : ${values.AI_MODEL || 'gemini-3.6-flash'}`)
       print(`${cyan('Images')}      : ${values.MEDIA_AI_IMAGE_MODEL || 'gemini-3.1-flash-image'}`)
       print(`${cyan('Vidéo')}       : ${values.MEDIA_AI_VIDEO_MODEL || 'gemini-omni-flash-preview'}`)
       return
@@ -822,15 +822,16 @@ async function updateConfiguration(args: string[]): Promise<void> {
       const values = (await readEnvironment()).values
       const currentKey = (values.AI_API_KEY || values.MEDIA_AI_API_KEY || '').trim()
       if (!currentKey) throw new Error('Aucune clé Gemini configurée. Ajoute-la d’abord dans Configuration > Clé Gemini.')
-      await testGeminiApiKey(currentKey)
-      print(green('✓ Clé Gemini valide : Google Gemini répond correctement.'))
+      const currentModel = (values.AI_MODEL || 'gemini-3.6-flash').trim()
+      await testGeminiApiKey(currentKey, currentModel)
+      print(green(`✓ Clé Gemini valide : ${currentModel} répond correctement.`))
       return
     }
     if (normalized === 'vider' || normalized === 'supprimer' || normalized === 'retirer') {
       await writeEnvironmentValues({
         AI_PROVIDER: 'gemini',
         AI_API_KEY: '',
-        AI_MODEL: 'gemini-2.5-flash',
+        AI_MODEL: 'gemini-3.6-flash',
         AI_BASE_URL: '',
         AI_PUBLIC: 'false',
         MEDIA_AI_PROVIDER: 'gemini',
@@ -842,11 +843,11 @@ async function updateConfiguration(args: string[]): Promise<void> {
       return restartAfterConfiguration('Clé Gemini retirée. Les fonctions IA ont été désactivées jusqu’à l’ajout d’une nouvelle clé.')
     }
     if (value.length < 20) throw new Error('La clé Gemini semble trop courte. Copie la clé complète depuis Google AI Studio.')
-    await testGeminiApiKey(value)
+    await testGeminiApiKey(value, 'gemini-3.6-flash')
     await writeEnvironmentValues({
       AI_PROVIDER: 'gemini',
       AI_API_KEY: value,
-      AI_MODEL: 'gemini-2.5-flash',
+      AI_MODEL: 'gemini-3.6-flash',
       AI_BASE_URL: '',
       AI_PUBLIC: 'false',
       MEDIA_AI_PROVIDER: 'gemini',
@@ -1455,24 +1456,44 @@ async function ownersPanel(reader: Interface): Promise<void> {
 
 const GEMINI_API_KEYS_URL = 'https://aistudio.google.com/app/apikey'
 
-async function testGeminiApiKey(apiKey: string): Promise<void> {
+async function testGeminiApiKey(apiKey: string, model = 'gemini-3.6-flash'): Promise<void> {
   const key = apiKey.trim()
   if (key.length < 20) throw new Error('Clé Gemini absente ou incomplète.')
   let response: Response
   try {
-    response = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
-      signal: AbortSignal.timeout(20_000),
-      headers: { 'x-goog-api-key': key },
-    })
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: 'POST',
+        signal: AbortSignal.timeout(25_000),
+        headers: {
+          'content-type': 'application/json',
+          'x-goog-api-key': key,
+        },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: 'Réponds uniquement: OK' }] }],
+          generationConfig: { maxOutputTokens: 16 },
+        }),
+      },
+    )
   } catch {
     throw new Error('Impossible de joindre Google Gemini. Vérifie la connexion Internet du VPS puis réessaie.')
   }
-  const payload = (await response.json().catch(() => ({}))) as { error?: { message?: string }; models?: unknown[] }
+  const payload = (await response.json().catch(() => ({}))) as {
+    error?: { message?: string }
+    candidates?: unknown[]
+  }
   if (!response.ok) {
     const message = payload.error?.message?.trim()
-    throw new Error(message ? `Clé Gemini refusée (${response.status}) : ${message.slice(0, 220)}` : `Clé Gemini refusée par Google (${response.status}).`)
+    throw new Error(
+      message
+        ? `Gemini a refusé le test (${response.status}) : ${message.slice(0, 220)}`
+        : `Gemini a refusé le test (${response.status}).`,
+    )
   }
-  if (!Array.isArray(payload.models)) throw new Error('Réponse Gemini inattendue. Réessaie dans quelques instants.')
+  if (!Array.isArray(payload.candidates) || payload.candidates.length === 0) {
+    throw new Error(`La clé est reconnue, mais le modèle ${model} n’a pas renvoyé de réponse exploitable.`)
+  }
 }
 
 async function showGeminiInstructions(): Promise<void> {
@@ -1483,23 +1504,30 @@ async function showGeminiInstructions(): Promise<void> {
   print(`${cyan('2.')} Connecte-toi avec ton compte Google.`)
   print(`${cyan('3.')} Dans « Clés API », utilise une clé existante ou appuie sur « Créer une clé API ».`)
   print(`${cyan('4.')} Appuie sur l’icône de copie à côté de la clé.`)
-  print(`${cyan('5.')} Reviens dans Bestla > Configuration > Clé Gemini > Ajouter / remplacer.`)
+  print(`${cyan('5.')} Sur le VPS concerné, ouvre Bestla > Configuration > Clé Gemini > Ajouter / remplacer.`)
   print(`${cyan('6.')} Colle la clé complète. Bestla la vérifie avant de l’enregistrer.`)
   print('')
-  print(yellow('Important : ne partage jamais ta clé dans WhatsApp, GitHub ou une capture d’écran.'))
+  print(yellow('Important : chaque VPS doit utiliser sa propre clé. Ne la partage jamais dans WhatsApp, GitHub ou une capture d’écran.'))
   print(gray('Le niveau gratuit et les modèles disponibles dépendent des quotas et règles de Google.'))
 }
 
 async function geminiKeyPanel(reader: Interface): Promise<void> {
-  await writeEnvironmentValues({ AI_PROVIDER: 'gemini', MEDIA_AI_PROVIDER: 'gemini' })
+  const initialValues = (await readEnvironment()).values
+  const legacyTextModels = new Set(['gemini-2.0-flash', 'gemini-2.0-flash-001', 'gemini-2.5-flash'])
+  const currentTextModel = (initialValues.AI_MODEL || '').trim()
+  await writeEnvironmentValues({
+    AI_PROVIDER: 'gemini',
+    MEDIA_AI_PROVIDER: 'gemini',
+    ...(legacyTextModels.has(currentTextModel) || !currentTextModel ? { AI_MODEL: 'gemini-3.6-flash' } : {}),
+  })
   await removeEnvironmentKeys(['POLLINATIONS_API_KEY', 'POLLINATIONS_TEXT_MODEL'])
   while (true) {
     const values = (await readEnvironment()).values
     const currentKey = (values.AI_API_KEY || values.MEDIA_AI_API_KEY || '').trim()
-    renderSubmenu('CLÉ GEMINI', 'Une seule clé pour l’assistant IA et les fonctions Gemini')
+    renderSubmenu('CLÉ GEMINI', 'Clé privée de ce VPS • chaque installation utilise sa propre clé')
     print(`${cyan('État')}       : ${currentKey ? green('configurée') : yellow('non configurée')}`)
     print(`${cyan('Clé')}        : ${maskSecret(currentKey)}`)
-    print(`${cyan('Modèle texte')}: ${values.AI_MODEL || 'gemini-2.5-flash'}`)
+    print(`${cyan('Modèle texte')}: ${values.AI_MODEL || 'gemini-3.6-flash'}`)
     panelRule()
     print(`${cyan('[1]')} ${bold('🔑 AJOUTER / REMPLACER LA CLÉ')}`)
     print(`${cyan('[2]')} ${bold('🧪 TESTER LA CLÉ ACTUELLE')}`)
@@ -1510,7 +1538,8 @@ async function geminiKeyPanel(reader: Interface): Promise<void> {
     const choice = normalizeMenuChoice(await reader.question(`\n${bold('Choix')} : `))
     if (choice === '0') return
     if (choice === '1') await safely(reader, async () => {
-      print(gray('La clé reste enregistrée uniquement dans le fichier .env privé du VPS.'))
+      print(gray('Cette clé appartient uniquement à ce VPS / cette installation Bestla.'))
+      print(gray('Pour un autre utilisateur ou un autre VPS, configure sa propre clé depuis ce même menu.'))
       const apiKey = (await reader.question('Colle la clé Gemini complète : ')).trim()
       if (!apiKey) throw new Error('Aucune clé saisie.')
       await updateConfiguration(['apigemini', apiKey])

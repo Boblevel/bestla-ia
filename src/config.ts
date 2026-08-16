@@ -39,7 +39,7 @@ const schema = z.object({
   // Gemini est l’unique fournisseur IA de Bestla.
   AI_PROVIDER: z.string().default('gemini'),
   AI_API_KEY: z.string().default(''),
-  AI_MODEL: z.string().default('gemini-2.5-flash'),
+  AI_MODEL: z.string().default('gemini-3.6-flash'),
   AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(64).max(2_000).default(700),
   AI_PUBLIC: booleanFromEnv.default(false),
   MEDIA_AI_PROVIDER: z.string().default('gemini'),
@@ -105,6 +105,18 @@ function parseSessionAuthModes(value: string, sessionNames: string[]): Map<strin
 }
 
 const runtimeGeminiKey = env.AI_API_KEY.trim() || env.MEDIA_AI_API_KEY.trim()
+
+const LEGACY_GEMINI_TEXT_MODELS = new Set([
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-001',
+  'gemini-2.5-flash',
+])
+
+function normalizeGeminiTextModel(value: string): string {
+  const model = value.trim()
+  if (!model || LEGACY_GEMINI_TEXT_MODELS.has(model)) return 'gemini-3.6-flash'
+  return model
+}
 
 export interface AppConfig {
   botName: string
@@ -176,7 +188,7 @@ export const config: AppConfig = {
   ai: {
     provider: 'gemini',
     apiKey: runtimeGeminiKey,
-    model: env.AI_MODEL.trim() || 'gemini-2.5-flash',
+    model: normalizeGeminiTextModel(env.AI_MODEL),
     maxOutputTokens: env.AI_MAX_OUTPUT_TOKENS,
     publicAccess: env.AI_PUBLIC,
   },
