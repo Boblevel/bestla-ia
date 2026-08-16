@@ -48,24 +48,14 @@ set_env_value() {
 }
 
 
-migrate_to_gemini_only() {
-  local previous_provider previous_media_provider
-  previous_provider="$(grep -E '^AI_PROVIDER=' "$APP_DIR/.env" 2>/dev/null | tail -n 1 | cut -d= -f2- | tr '[:upper:]' '[:lower:]' || true)"
-  previous_media_provider="$(grep -E '^MEDIA_AI_PROVIDER=' "$APP_DIR/.env" 2>/dev/null | tail -n 1 | cut -d= -f2- | tr '[:upper:]' '[:lower:]' || true)"
-
-  # Une ancienne clé d'un autre fournisseur ne doit jamais être envoyée à Google.
-  # En revanche, une clé Gemini déjà configurée est conservée lors d'une réinstallation.
-  if [ -n "$previous_provider" ] && [ "$previous_provider" != "gemini" ]; then
-    set_env_value "AI_API_KEY" ""
-  fi
-  if [ -n "$previous_media_provider" ] && [ "$previous_media_provider" != "gemini" ]; then
-    set_env_value "MEDIA_AI_API_KEY" ""
-  fi
-
+migrate_to_media_defaults() {
   set_env_value "AI_PROVIDER" "gemini"
   set_env_value "AI_MODEL" "gemini-3.6-flash"
-  set_env_value "MEDIA_AI_PROVIDER" "gemini"
-  set_env_value "MEDIA_AI_IMAGE_MODEL" "gemini-3.1-flash-image"
+  set_env_value "MEDIA_AI_PROVIDER" "mixed"
+  set_env_value "MEDIA_AI_ENABLED" "true"
+  set_env_value "MEDIA_AI_IMAGE_PROVIDER" "cloudflare"
+  set_env_value "MEDIA_AI_VIDEO_PROVIDER" "gemini"
+  set_env_value "MEDIA_AI_IMAGE_MODEL" "@cf/black-forest-labs/flux-1-schnell"
   set_env_value "MEDIA_AI_IMAGE_EDIT_MODEL" "gemini-3.1-flash-image"
   set_env_value "MEDIA_AI_VIDEO_MODEL" "gemini-omni-flash-preview"
 }
@@ -155,8 +145,7 @@ else
   chmod 600 .env
 fi
 
-# Migration : Gemini uniquement, sans écraser une clé Gemini déjà enregistrée.
-migrate_to_gemini_only
+migrate_to_media_defaults
 chmod 600 .env
 bestla_progress_set "$(bestla_progress_target 52)" "Configuration prête"
 

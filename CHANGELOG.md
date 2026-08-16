@@ -1,5 +1,26 @@
 # Journal des changements
 
+### Pool Cloudflare central de test + secours vidéo — 16 août 2026
+
+- Deux comptes Workers AI centraux préconfigurés pour les tests, sans saisie Cloudflare sur le VPS des installateurs.
+- Bascule automatique du compte principal vers le compte de secours sur quota, 429, erreurs d'authentification temporaires ou indisponibilité serveur.
+- Temporisation automatique d'un compte après quota/erreur pour éviter de le solliciter en boucle.
+- `.genererimage` utilise `@cf/black-forest-labs/flux-1-schnell`.
+- `.generervideo` conserve Gemini lorsqu'il est disponible et rétablit le comportement fiable de l'ancienne version : courte vidéo locale de 5 secondes depuis une image si Gemini échoue ou n'est pas configuré.
+- `.animerimage` bénéficie du même secours local.
+- Les médias IA sont activés automatiquement lors de l'installation/mise à jour.
+- Cette configuration centrale contient des identifiants temporaires destinés aux tests et devra être remplacée après révocation.
+
+### Mise à jour hybride Cloudflare + Gemini — 16 août 2026
+
+- Génération d'images déplacée vers **Cloudflare Workers AI** avec le modèle par défaut `@cf/black-forest-labs/flux-1-schnell`.
+- Vidéo courte, animation d'image et retouche vidéo conservées sur **Gemini**.
+- Retouche d'image conservée sur **Gemini** comme solution de secours compatible.
+- Ajout des variables `.env` Cloudflare : `MEDIA_AI_CLOUDFLARE_ACCOUNT_ID` et `MEDIA_AI_CLOUDFLARE_API_TOKEN`.
+- Ajout des fournisseurs séparés `MEDIA_AI_IMAGE_PROVIDER` et `MEDIA_AI_VIDEO_PROVIDER`.
+- La commande `.etatmediaia` affiche maintenant l'état détaillé des images, de la retouche image et de la vidéo.
+- Le README et le guide d'installation ont été mis à jour pour la configuration hybride recommandée.
+
 ### Correctifs de finition — conversations et panneau
 
 - La mention `✦ BY RHAFF SERVICE` est désormais réservée exclusivement à `.menu`.
