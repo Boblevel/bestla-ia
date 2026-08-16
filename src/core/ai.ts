@@ -79,7 +79,7 @@ export class AiService {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: `${instruction}\nRéponds en français clair. Ne révèle jamais de clé, identifiant ou donnée privée.` }] },
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: this.config.ai.maxOutputTokens, temperature: 0.5 },
+          generationConfig: { maxOutputTokens: this.config.ai.maxOutputTokens },
         }),
       },
     )
