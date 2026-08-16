@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { createInterface, type Interface } from 'node:readline/promises'
 import { stdin as input, stdout as output } from 'node:process'
 import dotenv from 'dotenv'
+import qrcode from 'qrcode-terminal'
 import { APP_VERSION } from './version.js'
 
 const APP_DIRECTORY = process.env.BESTLA_DIR
@@ -38,6 +39,14 @@ interface SessionConfig {
 
 interface SessionState extends SessionConfig {
   linked: boolean
+}
+
+
+interface LinkingArtifact {
+  session: string
+  type: 'qr' | 'pairing'
+  value: string
+  createdAt: string
 }
 
 interface Pm2Application {
@@ -337,6 +346,106 @@ function dataDirectory(values: Record<string, string>): string {
   return path.resolve(APP_DIRECTORY, values.DATA_DIR || 'data')
 }
 
+
+function linkingArtifactPath(values: Record<string, string>, name: string): string {
+  return path.join(dataDirectory(values), 'linking', `${name}.json`)
+}
+
+async function clearLinkingArtifact(values: Record<string, string>, name: string): Promise<void> {
+  await rm(linkingArtifactPath(values, name), { force: true }).catch(() => undefined)
+}
+
+async function readLinkingArtifact(values: Record<string, string>, name: string): Promise<LinkingArtifact | undefined> {
+  try {
+    const parsed = JSON.parse(await readFile(linkingArtifactPath(values, name), 'utf8')) as Partial<LinkingArtifact>
+    if (parsed.session !== name) return undefined
+    if (parsed.type !== 'qr' && parsed.type !== 'pairing') return undefined
+    if (typeof parsed.value !== 'string' || !parsed.value.trim()) return undefined
+    if (typeof parsed.createdAt !== 'string') return undefined
+    const createdAt = Date.parse(parsed.createdAt)
+    if (!Number.isFinite(createdAt) || Date.now() - createdAt > 120_000) return undefined
+    return parsed as LinkingArtifact
+  } catch {
+    return undefined
+  }
+}
+
+async function waitForLinkingArtifact(
+  values: Record<string, string>,
+  name: string,
+  timeoutMs: number,
+): Promise<LinkingArtifact | undefined> {
+  const deadline = Date.now() + Math.max(0, timeoutMs)
+  do {
+    const artifact = await readLinkingArtifact(values, name)
+    if (artifact) return artifact
+    if (Date.now() >= deadline) break
+    await new Promise((resolve) => setTimeout(resolve, 500))
+  } while (true)
+  return undefined
+}
+
+function formatPairingCode(value: string): string {
+  const compact = value.replace(/[^A-Za-z0-9]/g, '')
+  return compact.length === 8 ? `${compact.slice(0, 4)}-${compact.slice(4)}` : value.trim()
+}
+
+function renderLinkingArtifact(artifact: LinkingArtifact): void {
+  heading('LIAISON WHATSAPP', `Session ${artifact.session}`)
+  if (artifact.type === 'pairing') {
+    print('')
+    print(bold(centered('CODE DE LIAISON', PANEL_WIDTH + 2)))
+    print('')
+    print(bold(centered(formatPairingCode(artifact.value), PANEL_WIDTH + 2)))
+    print('')
+    print('WhatsApp → Appareils connectés → Connecter un appareil')
+    print('→ Lier avec un numéro de téléphone → saisis le code ci-dessus.')
+  } else {
+    print('')
+    print(bold('QR WHATSAPP'))
+    print('')
+    qrcode.generate(artifact.value, { small: true }, (qrText: string) => print(qrText.trimEnd()))
+    print('')
+    print('WhatsApp → Appareils connectés → Connecter un appareil → scanne ce QR.')
+  }
+  print('')
+  print(yellow('Ne partage jamais ce QR ou ce code de liaison.'))
+}
+
+async function showSessionLinking(name: string, timeoutMs = 0): Promise<void> {
+  if (!validSessionName(name)) throw new Error('Nom de session invalide.')
+  const state = await getSessionStates()
+  const session = state.sessions.find((entry) => entry.name === name)
+  if (!session) throw new Error(`Session introuvable : ${name}`)
+  if (session.linked) {
+    print(green(`✓ La session « ${name} » est déjà liée à WhatsApp.`))
+    return
+  }
+  const artifact = await waitForLinkingArtifact(state.environment.values, name, timeoutMs)
+  if (!artifact) throw new Error('Aucun QR/code prêt. Depuis Numéros WhatsApp, choisis « Générer / afficher QR ou code ».')
+  renderLinkingArtifact(artifact)
+}
+
+async function generateOrShowSessionLinking(name: string): Promise<void> {
+  if (!validSessionName(name)) throw new Error('Nom de session invalide.')
+  const state = await getSessionStates()
+  const session = state.sessions.find((entry) => entry.name === name)
+  if (!session) throw new Error(`Session introuvable : ${name}`)
+  if (session.linked) {
+    print(green(`✓ La session « ${name} » est déjà liée à WhatsApp.`))
+    print(gray('Pour créer une nouvelle liaison, utilise « Réinitialiser une liaison ».'))
+    return
+  }
+  const existing = await readLinkingArtifact(state.environment.values, name)
+  if (existing) {
+    renderLinkingArtifact(existing)
+    return
+  }
+  print(gray('Génération de la liaison WhatsApp…'))
+  await controlProcess('restart')
+  await showSessionLinking(name, 20_000)
+}
+
 async function runtimeDatabase(values: Record<string, string>): Promise<Record<string, unknown> | undefined> {
   const databasePath = path.join(dataDirectory(values), 'database.json')
   try {
@@ -371,12 +480,21 @@ async function persistRuntimePrefix(values: Record<string, string>, prefix: stri
   await rename(temporary, databasePath)
 }
 
+async function sessionIsLinked(directory: string, name: string): Promise<boolean> {
+  try {
+    const credentials = JSON.parse(await readFile(path.join(directory, 'sessions', name, 'creds.json'), 'utf8')) as { registered?: unknown }
+    return credentials.registered === true
+  } catch {
+    return false
+  }
+}
+
 async function getSessionStates(): Promise<{ environment: EnvironmentData; sessions: SessionState[] }> {
   const environment = await readEnvironment()
   const directory = dataDirectory(environment.values)
   const sessions = await Promise.all(sessionConfigs(environment.values).map(async (session) => ({
     ...session,
-    linked: await exists(path.join(directory, 'sessions', session.name, 'creds.json')),
+    linked: await sessionIsLinked(directory, session.name),
   })))
   return { environment, sessions }
 }
@@ -450,7 +568,7 @@ async function controlProcess(action: 'start' | 'stop' | 'restart'): Promise<voi
 async function restartAfterConfiguration(message: string): Promise<void> {
   print(green(`✓ ${message}`))
   await controlProcess('restart')
-  print(gray('La configuration est appliquée. Pour une nouvelle liaison : bestla logs live'))
+  print(gray('La configuration est appliquée. La liaison WhatsApp se gère dans Numéros WhatsApp.'))
 }
 
 async function addSession(args: string[]): Promise<void> {
@@ -468,6 +586,7 @@ async function addSession(args: string[]): Promise<void> {
   const modes = parsePairs(environment.values.SESSION_AUTH_MODES)
   phones.set(name, phone)
   modes.set(name, mode)
+  await clearLinkingArtifact(environment.values, name)
   await writeEnvironmentValues({
     SESSION_NAMES: [...sessions.map((session) => session.name), name].join(','),
     SESSION_PHONES: [...phones].map(([key, value]) => `${key}:${value}`).join(','),
@@ -485,6 +604,7 @@ async function setSessionMode(args: string[]): Promise<void> {
   if (!sessions.some((session) => session.name === name)) throw new Error(`Session introuvable : ${name}`)
   const modes = parsePairs(environment.values.SESSION_AUTH_MODES)
   modes.set(name, mode)
+  await clearLinkingArtifact(environment.values, name)
   await writeEnvironmentValue('SESSION_AUTH_MODES', [...modes].map(([key, value]) => `${key}:${value}`).join(','))
   await restartAfterConfiguration(`Mode de liaison de « ${name} » réglé sur ${mode}.`)
 }
@@ -504,13 +624,14 @@ async function resetSession(args: string[]): Promise<void> {
   const sessions = sessionConfigs(environment.values)
   if (!sessions.some((session) => session.name === name)) throw new Error(`Session introuvable : ${name}`)
   const sessionDirectory = path.join(dataDirectory(environment.values), 'sessions', name)
+  await clearLinkingArtifact(environment.values, name)
   if (await exists(sessionDirectory)) {
     const retiredDirectory = await retiredSessionDirectory(environment.values)
     const target = path.join(retiredDirectory, `${name}-reinitialisee-${new Date().toISOString().replace(/[:.]/g, '-')}`)
     await rename(sessionDirectory, target)
     print(gray(`Anciennes clés déplacées dans : ${target}`))
   }
-  await restartAfterConfiguration(`Liaison de « ${name} » réinitialisée. Le prochain QR/code apparaîtra dans les journaux.`)
+  await restartAfterConfiguration(`Liaison de « ${name} » réinitialisée.`)
 }
 
 async function removeSession(args: string[]): Promise<void> {
@@ -525,6 +646,7 @@ async function removeSession(args: string[]): Promise<void> {
   phones.delete(name)
   modes.delete(name)
   const sessionDirectory = path.join(dataDirectory(environment.values), 'sessions', name)
+  await clearLinkingArtifact(environment.values, name)
   if (await exists(sessionDirectory)) {
     const retiredDirectory = await retiredSessionDirectory(environment.values)
     await rename(sessionDirectory, path.join(retiredDirectory, `${name}-retiree-${new Date().toISOString().replace(/[:.]/g, '-')}`))
@@ -569,102 +691,6 @@ async function manageOwners(args: string[]): Promise<void> {
   throw new Error('Utilise : liste, ajouter ou retirer.')
 }
 
-async function configurePollinationsAutomatically(): Promise<void> {
-  heading('API IA AUTOMATIQUE', 'Pollinations • autorisation sécurisée sans coller de clé')
-  print(gray('Bestla va demander une clé utilisateur officielle via le device-flow Pollinations.'))
-  const codeResponse = await fetch('https://enter.pollinations.ai/api/device/code', {
-    method: 'POST',
-    signal: AbortSignal.timeout(30_000),
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({}),
-  })
-  const codePayload = await codeResponse.json().catch(() => ({})) as Record<string, unknown>
-  if (!codeResponse.ok) throw new Error(`Pollinations refuse la demande (${codeResponse.status}).`)
-  const deviceCode = typeof codePayload.device_code === 'string' ? codePayload.device_code : ''
-  const userCode = typeof codePayload.user_code === 'string' ? codePayload.user_code : ''
-  const rawUri = typeof codePayload.verification_uri === 'string' ? codePayload.verification_uri : '/device'
-  const verificationUri = rawUri.startsWith('http') ? rawUri : `https://enter.pollinations.ai${rawUri.startsWith('/') ? rawUri : `/${rawUri}`}`
-  if (!deviceCode || !userCode) throw new Error('Pollinations n’a pas renvoyé de code d’autorisation exploitable.')
-  print('')
-  print(`${cyan('1. Ouvre')} : ${verificationUri}`)
-  print(`${cyan('2. Entre le code')} : ${bold(userCode)}`)
-  print(`${cyan('3. Autorise')} Bestla iA dans la page affichée.`)
-  print('')
-  print(yellow('Bestla attend automatiquement la validation pendant 10 minutes…'))
-  const deadline = Date.now() + 10 * 60_000
-  while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 5_000))
-    const tokenResponse = await fetch('https://enter.pollinations.ai/api/device/token', {
-      method: 'POST',
-      signal: AbortSignal.timeout(30_000),
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ device_code: deviceCode }),
-    })
-    const payload = await tokenResponse.json().catch(() => ({})) as Record<string, unknown>
-    if (tokenResponse.ok && typeof payload.access_token === 'string' && payload.access_token.length >= 12) {
-      const authorizationKey = payload.access_token
-      let key = authorizationKey
-
-      // Le jeton du device-flow est normalement temporaire. Quand le scope
-      // "keys" est accordé, Bestla crée immédiatement une clé enfant dédiée
-      // au bot, limitée aux modèles utilisés et valable jusqu'à 365 jours.
-      // Si le compte ne permet pas cette création, on garde le jeton autorisé
-      // au lieu de faire échouer l'installation.
-      try {
-        const stableKeyResponse = await fetch('https://gen.pollinations.ai/account/keys', {
-          method: 'POST',
-          signal: AbortSignal.timeout(30_000),
-          headers: {
-            authorization: `Bearer ${authorizationKey}`,
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({
-            name: 'Bestla iA V4',
-            type: 'secret',
-            expiresIn: 31_536_000,
-            allowedModels: ['openai-fast', 'flux', 'kontext', 'wan-fast'],
-            accountPermissions: [],
-          }),
-        })
-        const stablePayload = await stableKeyResponse.json().catch(() => ({})) as Record<string, unknown>
-        if (stableKeyResponse.ok && typeof stablePayload.key === 'string' && stablePayload.key.length >= 12) {
-          key = stablePayload.key
-          print(green('✓ Clé Bestla dédiée créée automatiquement (durée maximale : 365 jours).'))
-        } else {
-          print(gray('Clé dédiée non créée : Bestla utilisera directement la clé autorisée par Pollinations.'))
-        }
-      } catch {
-        print(gray('Création de clé dédiée indisponible : la clé autorisée reste utilisée.'))
-      }
-
-      await writeEnvironmentValues({
-        POLLINATIONS_API_KEY: key,
-        POLLINATIONS_TEXT_MODEL: 'openai-fast',
-        AI_PROVIDER: 'openai-compatible',
-        AI_API_KEY: key,
-        AI_MODEL: 'openai-fast',
-        AI_BASE_URL: 'https://gen.pollinations.ai/v1',
-        AI_PUBLIC: 'false',
-        MEDIA_AI_PROVIDER: 'pollinations',
-        MEDIA_AI_API_KEY: key,
-        MEDIA_AI_ENABLED: 'true',
-        MEDIA_AI_PUBLIC: 'false',
-        MEDIA_AI_IMAGE_MODEL: 'flux',
-        MEDIA_AI_IMAGE_EDIT_MODEL: 'kontext',
-        MEDIA_AI_VIDEO_MODEL: 'wan-fast',
-        MEDIA_AI_VIDEO_ASPECT_RATIO: '9:16',
-      })
-      await restartAfterConfiguration('API IA Pollinations autorisée automatiquement : texte, image, retouche et vidéo activés pour le propriétaire.')
-      return
-    }
-    const errorCode = typeof payload.error === 'string' ? payload.error : ''
-    if (errorCode && errorCode !== 'authorization_pending' && errorCode !== 'slow_down') {
-      throw new Error(`Autorisation Pollinations refusée : ${errorCode}`)
-    }
-  }
-  throw new Error('Délai dépassé. Relance l’option API IA automatique et valide le code dans les 10 minutes.')
-}
-
 async function showConfiguration(): Promise<void> {
   const { values } = await readEnvironment()
   const prefix = await effectivePrefix(values)
@@ -686,7 +712,6 @@ async function showConfiguration(): Promise<void> {
   print(`${cyan('Médias IA publics')}: ${displayToggle(values.MEDIA_AI_PUBLIC)}`)
   print('')
   print(gray('Exemples : ') + 'bestla configuration prefixe !')
-  print(gray('            ') + 'bestla configuration apiauto')
   print(gray('            ') + 'bestla configuration apigemini TA_CLE_API')
   print(gray('            ') + 'bestla configuration mode public|prive')
   print(gray('            ') + 'bestla configuration signature RHAFF SERVICE')
@@ -735,7 +760,6 @@ async function updateConfiguration(args: string[]): Promise<void> {
   }
   if (action === 'commandes') return setToggleConfiguration('COMMANDS_ENABLED', args[1], 'commandes')
   if (action === 'reactionscommandes' || action === 'reactioncommandes') return setToggleConfiguration('COMMAND_REACTIONS', args[1], 'reactionscommandes')
-  if (action === 'apiauto' || action === 'apiautomatique' || action === 'pollinations') return configurePollinationsAutomatically()
   if (action === 'apigemini' || action === 'mediaapikey' || action === 'clemediaia') {
     const key = (args[1] ?? '').trim()
     if (!key) throw new Error('Utilisation : bestla configuration apigemini TA_CLE_API ou bestla configuration apigemini vider')
@@ -781,7 +805,7 @@ async function updateConfiguration(args: string[]): Promise<void> {
   if (action === 'marquerlu') return setToggleConfiguration('MARK_READ', args[1], 'marquerlu')
   if (action === 'toujoursenligne') return setToggleConfiguration('ALWAYS_ONLINE', args[1], 'toujoursenligne')
   if (action === 'rejeterappels') return setToggleConfiguration('REJECT_CALLS', args[1], 'rejeterappels')
-  throw new Error('Configuration : prefixe, mode, nom, signature, fuseau, commandes, reactionscommandes, apiauto, apigemini, mediaia, mediaiapublic, marquerlu, toujoursenligne, rejeterappels.')
+  throw new Error('Configuration : prefixe, mode, nom, signature, fuseau, commandes, reactionscommandes, apigemini, mediaia, mediaiapublic, marquerlu, toujoursenligne, rejeterappels.')
 }
 
 async function processStatus(): Promise<void> {
@@ -808,7 +832,7 @@ async function processStatus(): Promise<void> {
 async function showLogs(live: boolean): Promise<void> {
   if (!(await pm2Installed())) throw new Error('PM2 est absent.')
   if (live) {
-    print(yellow('Journaux en direct : arrête avec Ctrl+C. Le QR ou code de liaison y apparaîtra.'))
+    print(yellow('Journaux en direct : arrête avec Ctrl+C.'))
     await runInteractive('pm2', ['logs', PROCESS_NAME, '--lines', '80'])
     return
   }
@@ -1044,7 +1068,7 @@ async function displayQuickHelp(): Promise<void> {
   print(`${cyan('bestla')}                     ouvre le panneau de contrôle interactif`)
   print(`${cyan('bestla statut')}              état du bot et des numéros WhatsApp`)
   print(`${cyan('bestla sessions')}            liste les numéros configurés`)
-  print(`${cyan('bestla logs live')}           affiche QR/code de liaison et journaux`)
+  print(`${cyan('bestla logs live')}           affiche les journaux en direct`)
   print(`${cyan('bestla sauvegarde')}          sauvegarde privée des réglages/sessions`)
   print(`${cyan('bestla nettoyer confirmer')}  supprime ZIP/tests/sauvegardes de migration`)
   print(`${cyan('bestla desinstaller confirmer')} désinstalle complètement Bestla`)
@@ -1091,6 +1115,10 @@ async function dispatch(argumentsList: string[]): Promise<void> {
       else if (args[0] === 'retirer') await removeSession(args.slice(1))
       else if (args[0] === 'mode') await setSessionMode(args.slice(1))
       else if (args[0] === 'reinitialiser' || args[0] === 'réinitialiser') await resetSession(args.slice(1))
+      else if (args[0] === 'liaison' || args[0] === 'lier') {
+        const timeoutSeconds = Math.max(0, Number(args[2] ?? '0') || 0)
+        await showSessionLinking(args[1] ?? 'main', timeoutSeconds * 1_000)
+      }
       else throw new Error('Utilise : bestla sessions [liste|ajouter|mode|reinitialiser|retirer]')
       return
     case 'proprietaires':
@@ -1206,7 +1234,7 @@ async function renderDashboard(): Promise<void> {
   print(`${cyan('[04]')}  ${bold('⏱️   AUTOMATISATIONS & CLIENTS')}`)
   print(`${cyan('[05]')}  ${bold('🧰  SAUVEGARDES')}`)
   print(`${cyan('[06]')}  ${bold('🩺  MAINTENANCE & SYSTÈME')}`)
-  print(`${cyan('[07]')}  ${bold('📜  JOURNAUX & LIAISON')}`)
+  print(`${cyan('[07]')}  ${bold('📜  JOURNAUX')}`)
   print(`${cyan('[08]')}  ${bold('📚  GUIDE D UTILISATION')}`)
   panelRule()
   print(`${cyan('[00]')}  ${bold('🚪  QUITTER')}`)
@@ -1234,7 +1262,7 @@ async function sessionsPanel(reader: Interface): Promise<void> {
     print(`${cyan('[3]')} ${bold('♻ RÉINITIALISER UNE LIAISON')}`)
     print(`${cyan('[4]')} ${bold('🗑 RETIRER UN NUMÉRO')}`)
     print(`${cyan('[5]')} ${bold('📋 VOIR LE DÉTAIL DES SESSIONS')}`)
-    print(`${cyan('[6]')} ${bold('📜 VOIR LES DERNIERS QR / CODES')}`)
+    print(`${cyan('[6]')} ${bold('🔳 GÉNÉRER / AFFICHER QR OU CODE')}`)
     returnOption()
     const choice = normalizeMenuChoice(await reader.question(`\n${bold('Choix')} : `))
     if (choice === '0') return
@@ -1245,7 +1273,7 @@ async function sessionsPanel(reader: Interface): Promise<void> {
         const modeChoice = (await reader.question('Mode [1] QR  [2] code de liaison : ')).trim()
         const mode = modeChoice === '2' || modeChoice.toLowerCase() === 'pairing' ? 'pairing' : 'qr'
         await addSession([name, phone, mode])
-        print(yellow(`Ouvre ensuite « bestla logs live » pour lier la session ${name}.`))
+        await showSessionLinking(name, 20_000)
       })
       continue
     }
@@ -1255,13 +1283,17 @@ async function sessionsPanel(reader: Interface): Promise<void> {
         const modeChoice = (await reader.question('Nouveau mode [1] QR  [2] code : ')).trim()
         const mode = modeChoice === '2' || modeChoice.toLowerCase() === 'pairing' ? 'pairing' : 'qr'
         await setSessionMode([name, mode])
+        await showSessionLinking(name, 20_000)
       })
       continue
     }
     if (choice === '3') {
       await safely(reader, async () => {
         const name = (await reader.question('Session à réinitialiser : ')).trim()
-        if (await askConfirmation(reader, `Réinitialiser la liaison de ${name}`)) await resetSession([name, 'confirmer'])
+        if (await askConfirmation(reader, `Réinitialiser la liaison de ${name}`)) {
+          await resetSession([name, 'confirmer'])
+          await showSessionLinking(name, 20_000)
+        }
       })
       continue
     }
@@ -1277,7 +1309,12 @@ async function sessionsPanel(reader: Interface): Promise<void> {
       continue
     }
     if (choice === '6') {
-      await safely(reader, () => showLogs(false), 'Entrée pour revenir aux numéros…')
+      await safely(reader, async () => {
+        const sessionData = await getSessionStates()
+        const defaultName = sessionData.sessions.length === 1 ? sessionData.sessions[0]?.name ?? 'main' : ''
+        const answer = (await reader.question(`Session à lier${defaultName ? ` [${defaultName}]` : ''} : `)).trim()
+        await generateOrShowSessionLinking(answer || defaultName)
+      }, 'Entrée pour revenir aux numéros…')
       continue
     }
     print(yellow('Choix invalide.'))
@@ -1361,10 +1398,9 @@ async function configurationPanel(reader: Interface): Promise<void> {
     print(`${cyan('[8]')} ${bold('☎ REJETER LES APPELS')}`)
     print(`${cyan('[9]')} ${bold('👤 GÉRER LES PROPRIÉTAIRES')}`)
     print(`${cyan('[10]')} ${bold('⏳ RÉACTIONS D EXÉCUTION ⏳ / ✅ / ❌')}`)
-    print(`${cyan('[11]')} ${bold('✨ CONFIGURER L API IA AUTOMATIQUEMENT')}`)
-    print(`${cyan('[12]')} ${bold('🔑 CLÉ GEMINI MANUELLE (OPTIONNEL)')}`)
-    print(`${cyan('[13]')} ${bold('🎨 ACTIVER / DÉSACTIVER LES MÉDIAS IA')}`)
-    print(`${cyan('[14]')} ${bold('🌍 ACCÈS PUBLIC AUX MÉDIAS IA')}`)
+    print(`${cyan('[11]')} ${bold('🔑 CLÉ GEMINI MANUELLE (OPTIONNEL)')}`)
+    print(`${cyan('[12]')} ${bold('🎨 ACTIVER / DÉSACTIVER LES MÉDIAS IA')}`)
+    print(`${cyan('[13]')} ${bold('🌍 ACCÈS PUBLIC AUX MÉDIAS IA')}`)
     returnOption()
     const choice = normalizeMenuChoice(await reader.question(`\n${bold('Choix')} : `))
     if (choice === '0') return
@@ -1402,16 +1438,15 @@ async function configurationPanel(reader: Interface): Promise<void> {
       const selected = (await reader.question('Choisis [1] activer  [2] désactiver : ')).trim()
       await updateConfiguration(['reactionscommandes', selected === '2' ? 'desactiver' : 'activer'])
     })
-    else if (choice === '11') await safely(reader, configurePollinationsAutomatically, 'Entrée pour revenir à la configuration…')
-    else if (choice === '12') await safely(reader, async () => {
+    else if (choice === '11') await safely(reader, async () => {
       const apiKey = (await reader.question('Colle ici ta clé API Gemini (ou écris vider) : ')).trim()
       await updateConfiguration(['apigemini', apiKey])
     })
-    else if (choice === '13') await safely(reader, async () => {
+    else if (choice === '12') await safely(reader, async () => {
       const selected = (await reader.question('Choisis [1] activer  [2] désactiver : ')).trim()
       await updateConfiguration(['mediaia', selected === '2' ? 'desactiver' : 'activer'])
     })
-    else if (choice === '14') await safely(reader, async () => {
+    else if (choice === '13') await safely(reader, async () => {
       const selected = (await reader.question('Choisis [1] accès public  [2] propriétaire uniquement : ')).trim()
       await updateConfiguration(['mediaiapublic', selected === '1' ? 'activer' : 'desactiver'])
     })
@@ -1577,10 +1612,9 @@ async function maintenancePanel(reader: Interface): Promise<void> {
 
 async function logsPanel(reader: Interface): Promise<void> {
   while (true) {
-    renderSubmenu('JOURNAUX & LIAISON', 'QR et codes WhatsApp restent privés')
+    renderSubmenu('JOURNAUX')
     print(`${cyan('[1]')} ${bold('📜 AFFICHER LES 80 DERNIERS JOURNAUX')}`)
-    print(`${cyan('[2]')} ${bold('📡 JOURNAUX EN DIRECT / QR / CODE')}`)
-    print(`${cyan('[3]')} ${bold('📱 RAPPEL DES ÉTAPES DE LIAISON')}`)
+    print(`${cyan('[2]')} ${bold('📡 JOURNAUX EN DIRECT')}`)
     returnOption()
     const choice = normalizeMenuChoice(await reader.question(`\n${bold('Choix')} : `))
     if (choice === '0') return
@@ -1589,15 +1623,7 @@ async function logsPanel(reader: Interface): Promise<void> {
       print(yellow('Les journaux en direct utilisent Ctrl+C pour s arrêter.'))
       await showLogs(true).catch((error) => print(red(`✗ ${error instanceof Error ? error.message : 'Erreur inconnue.'}`)))
       await pause(reader, 'Entrée pour revenir aux journaux…')
-    } else if (choice === '3') await safely(reader, async () => {
-      heading('LIER UN COMPTE WHATSAPP')
-      print('1. Ajoute le numéro dans « Gestion des numéros WhatsApp ».')
-      print('2. Ouvre les journaux ou choisis « Journaux en direct ».')
-      print('3. WhatsApp téléphone → Appareils connectés → Connecter un appareil.')
-      print('4. QR : scanne le code.  Code : choisis « Lier avec un numéro » puis saisis le code.')
-      print(yellow('Ne partage jamais un QR ou un code de liaison.'))
-    })
-    else {
+    } else {
       print(yellow('Choix invalide.'))
       await pause(reader)
     }
