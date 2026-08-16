@@ -11,15 +11,15 @@ WORKSPACE_DIR="$(dirname "$TARGET_DIR")"
 ROLLBACK_DIR="$WORKSPACE_DIR/.bestla-rollback"
 
 if [ "$(uname -s)" != "Linux" ]; then
-  echo "Erreur : la mise à jour Bestla iA cible Linux."
+  echo "Erreur : la mise à jour cible Linux."
   exit 1
 fi
 if [ ! -f "$SOURCE_DIR/package.json" ]; then
-  echo "Erreur : lance ce script depuis le dossier Bestla v4 à appliquer."
+  echo "Erreur : lance ce script depuis le dossier du projet à appliquer."
   exit 1
 fi
 if [ ! -f "$TARGET_DIR/package.json" ]; then
-  echo "Erreur : installation Bestla introuvable dans $TARGET_DIR"
+  echo "Erreur : installation introuvable dans $TARGET_DIR"
   exit 1
 fi
 if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
@@ -33,74 +33,85 @@ if [ "$NODE_MAJOR" -lt 22 ]; then
 fi
 
 if [ ! -r "$PLATFORM_LIB" ]; then
-  echo "Erreur : fichier système Bestla introuvable : $PLATFORM_LIB"
+  echo "Erreur : fichier système introuvable : $PLATFORM_LIB"
   exit 1
 fi
 # shellcheck source=scripts/platform.sh
 source "$PLATFORM_LIB"
 PACKAGE_MANAGER="$(bestla_detect_package_manager || true)"
+bestla_progress_set 0 "Préparation de la mise à jour"
+
 if ! command -v rsync >/dev/null 2>&1; then
   if [ "${EUID}" -eq 0 ] && [ -n "$PACKAGE_MANAGER" ]; then
-    bestla_refresh_packages "$PACKAGE_MANAGER"
-    bestla_install_core_packages "$PACKAGE_MANAGER"
+    bestla_run_progress 8 "Installation de rsync" bestla_refresh_packages "$PACKAGE_MANAGER"
+    bestla_run_progress 14 "Outils système" bestla_install_core_packages "$PACKAGE_MANAGER"
   else
     echo "Erreur : rsync est absent."
     exit 1
   fi
+else
+  bestla_progress_set 8 "Outils système prêts"
 fi
 
-# Rollback unique : évite les dizaines de dossiers sauvegarde-bestla-avant-vX.
-rm -rf "$ROLLBACK_DIR"
-mkdir -p "$ROLLBACK_DIR"
-[ -f "$TARGET_DIR/.env" ] && cp -a "$TARGET_DIR/.env" "$ROLLBACK_DIR/.env"
-[ -d "$TARGET_DIR/data" ] && cp -a "$TARGET_DIR/data" "$ROLLBACK_DIR/data"
-[ -f "$TARGET_DIR/package.json" ] && cp -a "$TARGET_DIR/package.json" "$ROLLBACK_DIR/package.json"
-chmod 700 "$ROLLBACK_DIR"
+prepare_rollback() {
+  rm -rf "$ROLLBACK_DIR"
+  mkdir -p "$ROLLBACK_DIR"
+  [ -f "$TARGET_DIR/.env" ] && cp -a "$TARGET_DIR/.env" "$ROLLBACK_DIR/.env"
+  [ -d "$TARGET_DIR/data" ] && cp -a "$TARGET_DIR/data" "$ROLLBACK_DIR/data"
+  [ -f "$TARGET_DIR/package.json" ] && cp -a "$TARGET_DIR/package.json" "$ROLLBACK_DIR/package.json"
+  chmod 700 "$ROLLBACK_DIR"
+}
+bestla_run_progress 18 "Point de restauration" prepare_rollback
 
-echo "Rollback privé actualisé : $ROLLBACK_DIR"
-echo "Application de Bestla iA v4 dans le dossier permanent : $TARGET_DIR"
-rsync -a --delete \
-  --exclude='.env' \
-  --exclude='data/' \
-  --exclude='node_modules/' \
-  --exclude='output/' \
-  --exclude='tmp/' \
-  --exclude='releases/' \
-  --exclude='.git/' \
-  "$SOURCE_DIR/" "$TARGET_DIR/"
+sync_code() {
+  rsync -a --delete \
+    --exclude='.env' \
+    --exclude='data/' \
+    --exclude='node_modules/' \
+    --exclude='output/' \
+    --exclude='tmp/' \
+    --exclude='releases/' \
+    --exclude='.git/' \
+    "$SOURCE_DIR/" "$TARGET_DIR/"
+}
+bestla_run_progress 32 "Application des nouveaux fichiers" sync_code
 
 cd "$TARGET_DIR"
-npm ci
-npm run typecheck
-npm test
-npm run build
+bestla_run_progress 52 "Dépendances Node.js" npm ci
+bestla_run_progress 64 "Vérification TypeScript" npm run typecheck
+bestla_run_progress 76 "Tests automatiques" npm test
+bestla_run_progress 88 "Construction" npm run build
 chmod 755 dist/cli.js
 
 if [ "${EUID}" -eq 0 ]; then
   ln -sfn "$TARGET_DIR/dist/cli.js" /usr/local/bin/bestla
 fi
+bestla_progress_set 91 "Commande bestla prête"
 
-if command -v pm2 >/dev/null 2>&1; then
+restart_service() {
+  if ! command -v pm2 >/dev/null 2>&1; then return 0; fi
   if pm2 describe "$PROCESS_NAME" >/dev/null 2>&1; then
     pm2 restart "$PROCESS_NAME" --update-env
   else
     pm2 start ecosystem.config.cjs --only "$PROCESS_NAME" --update-env
   fi
   pm2 save
-fi
+}
+bestla_run_progress 97 "Redémarrage du service" restart_service
 
-# Supprime seulement les résidus historiques Bestla autour du dossier permanent.
-shopt -s nullglob
-for target in \
-  "$WORKSPACE_DIR"/bestla-v*-test \
-  "$WORKSPACE_DIR"/bestla-ia-bot-v*.zip \
-  "$WORKSPACE_DIR"/sauvegarde-bestla-avant-v* \
-  "$WORKSPACE_DIR"/sauvegarde-complete-avant-v*; do
-  rm -rf "$target"
-done
-shopt -u nullglob
+cleanup_legacy() {
+  shopt -s nullglob
+  for target in \
+    "$WORKSPACE_DIR"/bestla-v*-test \
+    "$WORKSPACE_DIR"/bestla-ia-bot-v*.zip \
+    "$WORKSPACE_DIR"/sauvegarde-bestla-avant-v* \
+    "$WORKSPACE_DIR"/sauvegarde-complete-avant-v*; do
+    rm -rf "$target"
+  done
+  shopt -u nullglob
+}
+bestla_run_progress 99 "Nettoyage final" cleanup_legacy
+bestla_progress_set 100 "Mise à jour terminée"
 
-echo "✅ Bestla iA v4 mise à jour dans le même dossier."
-echo "✅ .env et sessions WhatsApp conservés."
-echo "✅ Anciens dossiers/ZIP de migration supprimés."
+echo "✅ .env, clé Gemini et sessions WhatsApp conservés."
 echo "Vérifie avec : bestla statut"

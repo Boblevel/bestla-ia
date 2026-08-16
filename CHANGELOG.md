@@ -1,5 +1,13 @@
 # Journal des changements
 
+### Correctifs de finition — conversations et panneau
+
+- La mention `✦ BY RHAFF SERVICE` est désormais réservée exclusivement à `.menu`.
+- Les réponses IA et automatiques parlent naturellement à la place du propriétaire, sans nom de bot, en-tête ni signature, et évitent de répéter une salutation à chaque message.
+- Ajout de barres de progression animées en pourcentage pour l’installation, la mise à jour et les principales opérations longues du panneau.
+- Les réinstallations conservent une clé Gemini déjà configurée et utilisent `gemini-3.6-flash` pour le texte.
+- Les anciennes variables de fournisseurs IA sont nettoyées lors de la configuration Gemini.
+
 
 ### Mise à jour V4 — assistant automatique et outils IA
 
@@ -15,15 +23,15 @@
 - Suppression des petites descriptions sous les rubriques du panneau.
 - Les mentions du service de publication et du dépôt ne sont plus affichées dans le panneau utilisateur.
 - Menu WhatsApp refondu façon Levanter : en-tête complet puis toutes les commandes actives classées par domaine, sans descriptions latérales.
-- Signature harmonisée en **BY RHAFF SERVICE**.
-- Secours média : génération d’image via le point d’accès anonyme historique Pollinations si le compte authentifié manque de crédit ; secours vidéo local avec FFmpeg lorsque le fournisseur refuse la génération.
+- Signature **BY RHAFF SERVICE** conservée uniquement dans la commande `.menu`; les conversations et réponses automatiques restent naturelles et sans signature.
+- Fournisseur IA unifié sur Gemini avec clé privée propre à chaque installation; les anciens réglages de fournisseurs sont nettoyés lors de la migration.
 
 ## V4 - révision finale — 2026-08-16
 
 - Version publique maintenue sous **v4 / 4.0.0** pour éviter de multiplier les dossiers et archives de version sur le VPS.
 - Panneau VPS restructuré : informations système alignées, titre du menu principal sans grand cadre, navigation compacte.
-- Configuration IA automatique via le device-flow officiel Pollinations : aucun secret n’est publié ou copié depuis Internet.
-- Texte configuré sur `openai-fast`, génération d’image sur `flux`, retouche sur `kontext` et vidéo économique sur `wan-fast`; Gemini manuel reste disponible en option.
+- Configuration Gemini depuis le panneau Bestla : chaque installation utilise sa propre clé privée stockée dans `.env`.
+- Texte configuré sur `gemini-3.6-flash`; l’IA et les médias utilisent exclusivement la configuration Gemini de l’installation.
 - Menus WhatsApp classés par domaines, `.menu tout` détaillé, pied de menu `BY RHAFF SERVICE`.
 - Nettoyage ciblé des anciens fichiers Bestla sans toucher aux autres services du serveur.
 - Désinstallation complète Bestla avec confirmation explicite.
