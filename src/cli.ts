@@ -1213,13 +1213,16 @@ async function safely(reader: Interface, action: () => Promise<void>, returnMess
   await pause(reader, returnMessage)
 }
 
-async function askConfirmation(reader: Interface, prompt: string, expected = 'CONFIRMER'): Promise<boolean> {
-  const answer = (await reader.question(`${prompt} ${gray(`(écris ${expected})`)} : `)).trim().toUpperCase()
-  if (answer !== expected) {
-    print(yellow('Action annulée.'))
-    return false
+async function askConfirmation(reader: Interface, prompt: string, _legacyExpected?: string): Promise<boolean> {
+  while (true) {
+    const answer = (await reader.question(`${prompt} ${gray('[o/n]')} : `)).trim().toLowerCase()
+    if (['o', 'oui', 'y', 'yes'].includes(answer)) return true
+    if (['n', 'non', 'no', ''].includes(answer)) {
+      print(yellow('Action annulée.'))
+      return false
+    }
+    print(yellow('Réponds simplement par o (oui) ou n (non).'))
   }
-  return true
 }
 
 async function renderDashboard(): Promise<void> {
@@ -1496,7 +1499,9 @@ async function automationsPanel(reader: Interface): Promise<void> {
       print('.autoreponse ajouter prive bonjour | Bonjour, comment pouvons-nous vous aider ?')
       print('.absence activer Nous vous répondrons bientôt.')
       print('.horaires definir Lundi-Vendredi 08:00-18:00')
-      print('.serviceclientia activer|desactiver|statut')
+      print('.assistantauto activer|desactiver|statut|consigne')
+      print('.attentes')
+      print('.reprendreclient ID | MESSAGE')
       print('.programmer quotidien 08:00 | Bonjour à toute l équipe')
       print('.programmes')
       print('.annulerprogramme ID')
@@ -1577,21 +1582,48 @@ async function cleanupWorkspaceArtifacts(): Promise<void> {
 
 async function uninstallBestlaCompletely(): Promise<void> {
   if (typeof process.getuid === 'function' && process.getuid() !== 0) throw new Error('Cette action demande root.')
+
   if (await pm2ProcessExists()) {
     await run('pm2', ['delete', PROCESS_NAME])
     await run('pm2', ['save'])
   }
+
   const launcherPath = '/usr/local/bin/bestla'
   if (await exists(launcherPath)) await rm(launcherPath, { force: true })
-  const workspace = path.dirname(APP_DIRECTORY)
-  const names = await readdir(workspace).catch(() => [] as string[])
-  for (const name of names) {
-    if (name === path.basename(APP_DIRECTORY) || /^bestla-v[\d.]+-test$/.test(name) || /^bestla-ia-bot-v[\d.].*\.zip$/.test(name) || /^sauvegarde-bestla-avant-v[\d.]+-/.test(name) || /^sauvegarde-complete-avant-v[\d.]+-/.test(name) || name === 'sauvegardes-bestla' || name === '.bestla-rollback') {
-      await rm(path.join(workspace, name), { recursive: true, force: true })
+
+  // Supprime uniquement les traces PM2 appartenant à Bestla. On ne touche
+  // ni à PM2 lui-même, ni aux journaux/processus des autres applications.
+  const pm2Home = path.join(os.homedir(), '.pm2')
+  for (const directory of ['logs', 'pids']) {
+    const target = path.join(pm2Home, directory)
+    const names = await readdir(target).catch(() => [] as string[])
+    for (const name of names) {
+      if (name.startsWith(PROCESS_NAME)) await rm(path.join(target, name), { force: true })
     }
   }
-  print(green('✓ Bestla iA a été désinstallée du VPS.'))
-  print(gray('Tes autres services du serveur n’ont pas été touchés.'))
+
+  const workspace = path.dirname(APP_DIRECTORY)
+  if (path.basename(workspace) === 'bestla-ia') {
+    await rm(workspace, { recursive: true, force: true })
+  } else {
+    // BESTLA_DIR peut être personnalisé : dans ce cas on ne supprime jamais
+    // le dossier parent, qui pourrait contenir d’autres services.
+    await rm(APP_DIRECTORY, { recursive: true, force: true })
+  }
+
+  // Nettoie aussi les anciens emplacements temporaires utilisés par les
+  // premières versions de l’installateur, sans supprimer d’outil partagé.
+  for (const legacy of [
+    '/root/bestla-install',
+    '/root/bestla-update-v4',
+    '/root/bestla-ia-bot-v4-final.zip',
+    '/root/bestla-ia-bot-v4.zip',
+  ]) {
+    await rm(legacy, { recursive: true, force: true }).catch(() => undefined)
+  }
+
+  print(green('✓ Bestla iA, ses sessions, ses données, ses sauvegardes et ses journaux PM2 ont été supprimés.'))
+  print(gray('Node.js, npm, PM2, FFmpeg, Git et les autres services du VPS ont été conservés.'))
   process.exit(0)
 }
 
