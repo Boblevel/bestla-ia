@@ -506,7 +506,7 @@ export const automationCommands: BotCommand[] = [
       }
       if (action === 'activer') {
         if (!new AiService(ctx.config).isConfigured()) {
-          return void (await ctx.reply('Configure d’abord l’API IA depuis le panneau : bestla > Configuration > API IA automatique.'))
+          return void (await ctx.reply('L’assistant IA n’est pas configuré. Vérifie la configuration IA de Bestla, puis réessaie.'))
         }
         await ctx.db.mutateAutomation((settings) => { settings.customerAi.enabled = true })
         return void (await ctx.reply('Service client IA *activé*. Il répond automatiquement, poliment et uniquement dans les conversations privées.'))
@@ -532,7 +532,7 @@ export const automationCommands: BotCommand[] = [
     name: 'assistantauto',
     aliases: ['iaauto', 'assistantclient'],
     description: 'Active ou désactive l’assistant IA automatique pour les messages privés entrants.',
-    usage: 'activer|desactiver|statut|consigne <texte>',
+    usage: 'activer|desactiver|statut|consigne <texte>|reinitialiser',
     category: 'Automatisation',
     ownerOnly: true,
     async execute(ctx) {
@@ -544,13 +544,13 @@ export const automationCommands: BotCommand[] = [
           `Assistant IA automatique : *${settings.enabled ? 'activé' : 'désactivé'}*
 Réponses : *messages privés entrants uniquement*
 Fournisseur : *${ai.configured ? 'configuré' : 'non configuré'}* (${ai.provider} / ${ai.model})
-Protection : *1 réponse par personne toutes les 15 s*
+Protection : *messages privés entrants uniquement • 1 réponse toutes les 20 s • transfert humain automatique*
 Consigne : ${settings.instructions}`,
         ))
       }
       if (action === 'activer') {
         if (!new AiService(ctx.config).isConfigured()) {
-          return void (await ctx.reply('Configure d’abord l’API IA depuis le panneau Bestla > Configuration.'))
+          return void (await ctx.reply('L’assistant IA n’est pas configuré. Vérifie la configuration IA de Bestla, puis réessaie.'))
         }
         await ctx.db.mutateAutomation((automation) => { automation.customerAi.enabled = true })
         return void (await ctx.reply(
@@ -570,7 +570,56 @@ Il répond aux personnes qui t’écrivent en privé, sans démarchage, sans env
         await ctx.db.mutateAutomation((automation) => { automation.customerAi.instructions = instructions.slice(0, 2_000) })
         return void (await ctx.reply('✅ Consigne de l’assistant automatique mise à jour.'))
       }
-      await ctx.reply(`Utilisation : ${ctx.prefix}assistantauto activer|desactiver|statut|consigne <texte>`)
+      if (action === 'reinitialiser') {
+        await ctx.db.mutateAutomation((automation) => { automation.customerAi.instructions = DEFAULT_AUTOMATION.customerAi.instructions })
+        return void (await ctx.reply('✅ Consigne de l’assistant automatique réinitialisée.'))
+      }
+      await ctx.reply(`Utilisation : ${ctx.prefix}assistantauto activer|desactiver|statut|consigne <texte>|reinitialiser`)
+    },
+  },
+  {
+    name: 'attentes',
+    aliases: ['clientsattente', 'fileattente'],
+    description: 'Liste les clients transmis automatiquement au propriétaire par l’assistant IA.',
+    category: 'Automatisation',
+    ownerOnly: true,
+    async execute(ctx) {
+      if (ctx.isGroup) return void (await ctx.reply('Consulte la file d’attente dans une conversation privée avec Bestla iA.'))
+      const tickets = ctx.db
+        .listTickets({ status: 'ouvert' })
+        .filter((ticket) => ticket.subject.startsWith('[IA] '))
+        .slice(0, 25)
+      await ctx.reply(
+        tickets.length
+          ? `*CLIENTS EN ATTENTE*\n\n${tickets.map(ticketLabel).join('\n\n')}\n\nPour reprendre : ${ctx.prefix}reprendreclient ID | message`
+          : 'Aucun client n’est actuellement en attente de reprise humaine.',
+      )
+    },
+  },
+  {
+    name: 'reprendreclient',
+    aliases: ['repriseclient', 'repondreattente'],
+    description: 'Répond à un client mis en attente par l’assistant IA puis clôture son attente.',
+    usage: '<id> | <message>',
+    category: 'Automatisation',
+    ownerOnly: true,
+    cooldownSeconds: 3,
+    async execute(ctx) {
+      if (ctx.isGroup) return void (await ctx.reply('Reprends un client depuis une conversation privée avec Bestla iA.'))
+      const pair = splitAtPipe(ctx.argText)
+      if (!pair) return void (await ctx.reply(`Utilisation : ${ctx.prefix}reprendreclient tk12345678 | Bonjour, je reprends personnellement votre demande.`))
+      const [id, response] = pair
+      const ticket = ctx.db.getTicket(id)
+      if (!ticket || !ticket.subject.startsWith('[IA] ')) return void (await ctx.reply('Client en attente introuvable.'))
+      if (ticket.status !== 'ouvert') return void (await ctx.reply('Cette attente est déjà clôturée.'))
+      if (ticket.sessionName !== ctx.sessionName) {
+        return void (await ctx.reply(`Cette attente appartient à la session *${ticket.sessionName}*. Utilise cette session pour répondre.`))
+      }
+      await ctx.sock.sendMessage(ticket.chatId, {
+        text: signText(`👤 Le responsable reprend maintenant la conversation.\n\n${response.slice(0, 3_500)}`, ctx.config),
+      })
+      await ctx.db.updateTicket(ticket.id, { status: 'ferme' })
+      await ctx.reply(`✅ Client repris et attente *#${ticket.id}* clôturée.`)
     },
   },
   {
