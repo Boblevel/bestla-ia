@@ -805,17 +805,20 @@ async function showConfiguration(): Promise<void> {
   print(`${cyan('Toujours en ligne')}: ${displayToggle(values.ALWAYS_ONLINE)}`)
   print(`${cyan('Rejeter appels')}   : ${displayToggle(values.REJECT_CALLS)}`)
   const geminiKey = (values.AI_API_KEY || values.MEDIA_AI_API_KEY || '').trim()
+  const imageProvider = (values.MEDIA_AI_IMAGE_PROVIDER || 'cloudflare').trim()
+  const videoProvider = (values.MEDIA_AI_VIDEO_PROVIDER || 'gemini').trim()
   print(`${cyan('Assistant IA')}     : ${green('Gemini')} ${geminiKey ? green('(clé configurée)') : gray('(clé manquante)')}`)
   print(`${cyan('Modèle texte')}      : ${values.AI_MODEL || 'gemini-3.6-flash'}`)
   print(`${cyan('Clé Gemini')}        : ${maskSecret(geminiKey)}`)
-  print(`${cyan('Médias IA')}        : ${displayToggle(values.MEDIA_AI_ENABLED)} ${geminiKey ? green('(clé configurée)') : gray('(clé manquante)')}`)
+  print(`${cyan('Médias IA')}        : ${displayToggle(values.MEDIA_AI_ENABLED ?? 'true')}`)
+  print(`${cyan('Images IA')}        : ${imageProvider} ${green('(pool central 2 comptes)')}`)
+  print(`${cyan('Vidéos IA')}        : ${videoProvider}${geminiKey ? green(' + secours local 5 s') : green(' (secours local 5 s)')}`)
   print(`${cyan('Médias IA publics')}: ${displayToggle(values.MEDIA_AI_PUBLIC)}`)
   print('')
   print(gray('Exemples : ') + 'bestla configuration prefixe !')
   print(gray('            ') + 'bestla configuration apigemini statut')
-  print(gray('            ') + 'bestla configuration apigemini tester')
-  print(gray('            ') + 'bestla configuration apigemini TA_CLE_API')
-  print(gray('            ') + 'bestla configuration apigemini vider')
+  print(gray('            ') + 'bestla configuration mediaia activer')
+
 }
 
 async function setToggleConfiguration(key: ToggleKey, value: string | undefined, label: string): Promise<void> {
@@ -874,7 +877,7 @@ async function updateConfiguration(args: string[]): Promise<void> {
       print(`${cyan('Fournisseur')} : ${green('Gemini')}`)
       print(`${cyan('Clé')}         : ${maskSecret(currentKey)}`)
       print(`${cyan('Texte')}       : ${values.AI_MODEL || 'gemini-3.6-flash'}`)
-      print(`${cyan('Images')}      : ${values.MEDIA_AI_IMAGE_MODEL || 'gemini-3.1-flash-image'}`)
+      print(`${cyan('Retouche')}    : ${values.MEDIA_AI_IMAGE_EDIT_MODEL || 'gemini-3.1-flash-image'}`)
       print(`${cyan('Vidéo')}       : ${values.MEDIA_AI_VIDEO_MODEL || 'gemini-omni-flash-preview'}`)
       return
     }
@@ -894,13 +897,13 @@ async function updateConfiguration(args: string[]): Promise<void> {
         AI_MODEL: 'gemini-3.6-flash',
         AI_BASE_URL: '',
         AI_PUBLIC: 'false',
-        MEDIA_AI_PROVIDER: 'gemini',
+        MEDIA_AI_PROVIDER: 'mixed',
         MEDIA_AI_API_KEY: '',
-        MEDIA_AI_ENABLED: 'false',
-        MEDIA_AI_PUBLIC: 'false',
+        MEDIA_AI_IMAGE_EDIT_MODEL: 'gemini-3.1-flash-image',
+        MEDIA_AI_VIDEO_MODEL: 'gemini-omni-flash-preview',
       })
       await removeEnvironmentKeys(['POLLINATIONS_API_KEY', 'POLLINATIONS_TEXT_MODEL'])
-      return restartAfterConfiguration('Clé Gemini retirée. Les fonctions IA ont été désactivées jusqu’à l’ajout d’une nouvelle clé.')
+      return restartAfterConfiguration('Clé Gemini retirée. Le texte, la retouche image et la vidéo IA resteront désactivés jusqu’à l’ajout d’une nouvelle clé.')
     }
     if (value.length < 20) throw new Error('La clé Gemini semble trop courte. Copie la clé complète depuis Google AI Studio.')
     await testGeminiApiKey(value, 'gemini-3.6-flash')
@@ -910,32 +913,66 @@ async function updateConfiguration(args: string[]): Promise<void> {
       AI_MODEL: 'gemini-3.6-flash',
       AI_BASE_URL: '',
       AI_PUBLIC: 'false',
-      MEDIA_AI_PROVIDER: 'gemini',
+      MEDIA_AI_PROVIDER: 'mixed',
       MEDIA_AI_API_KEY: value,
-      MEDIA_AI_IMAGE_MODEL: 'gemini-3.1-flash-image',
       MEDIA_AI_IMAGE_EDIT_MODEL: 'gemini-3.1-flash-image',
       MEDIA_AI_VIDEO_MODEL: 'gemini-omni-flash-preview',
+      MEDIA_AI_VIDEO_PROVIDER: 'gemini',
     })
     await removeEnvironmentKeys(['POLLINATIONS_API_KEY', 'POLLINATIONS_TEXT_MODEL'])
-    return restartAfterConfiguration('Clé Gemini vérifiée et enregistrée. Bestla utilise maintenant Gemini pour l’IA.')
+    return restartAfterConfiguration('Clé Gemini vérifiée et enregistrée. Bestla utilise maintenant Gemini pour le texte et la vidéo IA.')
+  }
+  if (action === 'imagecloudflare' || action === 'cloudflareimage') {
+    const first = (args[1] ?? '').trim()
+    const second = (args[2] ?? '').trim()
+    if (!first) {
+      throw new Error('Utilisation : bestla configuration imagecloudflare statut|vider|ACCOUNT_ID API_TOKEN')
+    }
+    const normalized = first.toLowerCase()
+    if (normalized === 'statut' || normalized === 'status') {
+      const values = (await readEnvironment()).values
+      const accountId = (values.MEDIA_AI_CLOUDFLARE_ACCOUNT_ID || '').trim()
+      const token = (values.MEDIA_AI_CLOUDFLARE_API_TOKEN || '').trim()
+      heading('CLOUDFLARE IMAGE', "État de la génération d'images")
+      print(`${cyan('Fournisseur')} : ${values.MEDIA_AI_IMAGE_PROVIDER || 'cloudflare'}`)
+      print(`${cyan('Account ID')}  : ${accountId || 'non configuré'}`)
+      print(`${cyan('API Token')}   : ${maskSecret(token)}`)
+      print(`${cyan('Modèle')}      : ${values.MEDIA_AI_IMAGE_MODEL || '@cf/black-forest-labs/flux-1-schnell'}`)
+      return
+    }
+    if (normalized === 'vider' || normalized === 'supprimer' || normalized === 'retirer') {
+      await writeEnvironmentValues({
+        MEDIA_AI_IMAGE_PROVIDER: 'cloudflare',
+        MEDIA_AI_CLOUDFLARE_ACCOUNT_ID: '',
+        MEDIA_AI_CLOUDFLARE_API_TOKEN: '',
+        MEDIA_AI_IMAGE_MODEL: '@cf/black-forest-labs/flux-1-schnell',
+      })
+      return restartAfterConfiguration('Configuration Cloudflare image supprimée.')
+    }
+    const accountId = first
+    const apiToken = second
+    if (accountId.length < 8 || apiToken.length < 20) {
+      throw new Error('Indique un Account ID et un API Token Cloudflare valides.')
+    }
+    await writeEnvironmentValues({
+      MEDIA_AI_PROVIDER: 'mixed',
+      MEDIA_AI_IMAGE_PROVIDER: 'cloudflare',
+      MEDIA_AI_CLOUDFLARE_ACCOUNT_ID: accountId,
+      MEDIA_AI_CLOUDFLARE_API_TOKEN: apiToken,
+      MEDIA_AI_IMAGE_MODEL: '@cf/black-forest-labs/flux-1-schnell',
+    })
+    return restartAfterConfiguration('Configuration Cloudflare enregistrée. Les images IA utiliseront maintenant Cloudflare.')
   }
   if (action === 'mediaia') {
     const enabled = parseToggle(args[1])
     if (enabled === undefined) throw new Error('Utilisation : bestla configuration mediaia activer|desactiver')
-    if (enabled) {
-      const values = (await readEnvironment()).values
-      const key = (values.AI_API_KEY || values.MEDIA_AI_API_KEY || '').trim()
-      if (key.length < 12) {
-        throw new Error('Ajoute d’abord ta clé Gemini dans Configuration > Clé Gemini, puis active les médias IA.')
-      }
-    }
     return setToggleConfiguration('MEDIA_AI_ENABLED', enabled ? 'activer' : 'desactiver', 'mediaia')
   }
   if (action === 'mediaiapublic') return setToggleConfiguration('MEDIA_AI_PUBLIC', args[1], 'mediaiapublic')
   if (action === 'marquerlu') return setToggleConfiguration('MARK_READ', args[1], 'marquerlu')
   if (action === 'toujoursenligne') return setToggleConfiguration('ALWAYS_ONLINE', args[1], 'toujoursenligne')
   if (action === 'rejeterappels') return setToggleConfiguration('REJECT_CALLS', args[1], 'rejeterappels')
-  throw new Error('Configuration : prefixe, mode, nom, signature, fuseau, commandes, reactionscommandes, apigemini, mediaia, mediaiapublic, marquerlu, toujoursenligne, rejeterappels.')
+  throw new Error('Configuration : prefixe, mode, nom, signature, fuseau, commandes, reactionscommandes, apigemini, imagecloudflare, mediaia, mediaiapublic, marquerlu, toujoursenligne, rejeterappels.')
 }
 
 async function processStatus(): Promise<void> {

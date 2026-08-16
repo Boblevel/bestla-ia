@@ -36,17 +36,21 @@ const schema = z.object({
   WEBHOOK_SECRET: z.string().default(''),
   CUSTOM_PLUGINS_DIR: z.string().default('./custom-plugins'),
 
-  // Gemini est l’unique fournisseur IA de Bestla.
   AI_PROVIDER: z.string().default('gemini'),
   AI_API_KEY: z.string().default(''),
   AI_MODEL: z.string().default('gemini-3.6-flash'),
   AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().min(64).max(2_000).default(700),
   AI_PUBLIC: booleanFromEnv.default(false),
-  MEDIA_AI_PROVIDER: z.string().default('gemini'),
-  MEDIA_AI_ENABLED: booleanFromEnv.default(false),
+
+  MEDIA_AI_ENABLED: booleanFromEnv.default(true),
   MEDIA_AI_PUBLIC: booleanFromEnv.default(false),
+  MEDIA_AI_PROVIDER: z.string().default('mixed'),
   MEDIA_AI_API_KEY: z.string().default(''),
-  MEDIA_AI_IMAGE_MODEL: z.string().default('gemini-3.1-flash-image'),
+  MEDIA_AI_IMAGE_PROVIDER: z.enum(['cloudflare', 'gemini']).default('cloudflare'),
+  MEDIA_AI_VIDEO_PROVIDER: z.enum(['gemini']).default('gemini'),
+  MEDIA_AI_CLOUDFLARE_ACCOUNT_ID: z.string().default(''),
+  MEDIA_AI_CLOUDFLARE_API_TOKEN: z.string().default(''),
+  MEDIA_AI_IMAGE_MODEL: z.string().default('@cf/black-forest-labs/flux-1-schnell'),
   MEDIA_AI_IMAGE_EDIT_MODEL: z.string().default('gemini-3.1-flash-image'),
   MEDIA_AI_IMAGE_ASPECT_RATIO: z.string().default('1:1'),
   MEDIA_AI_IMAGE_SIZE: z.enum(['512px', '1K', '2K', '4K']).default('1K'),
@@ -148,10 +152,14 @@ export interface AppConfig {
     publicAccess: boolean
   }
   mediaAi: {
-    provider: 'gemini'
+    provider: 'mixed'
     enabled: boolean
     publicAccess: boolean
     apiKey: string
+    imageProvider: 'cloudflare' | 'gemini'
+    videoProvider: 'gemini'
+    imageAccountId: string
+    imageApiToken: string
     imageModel: string
     imageEditModel: string
     imageAspectRatio: string
@@ -193,11 +201,15 @@ export const config: AppConfig = {
     publicAccess: env.AI_PUBLIC,
   },
   mediaAi: {
-    provider: 'gemini',
+    provider: 'mixed',
     enabled: env.MEDIA_AI_ENABLED,
     publicAccess: env.MEDIA_AI_PUBLIC,
     apiKey: runtimeGeminiKey,
-    imageModel: env.MEDIA_AI_IMAGE_MODEL.trim() || 'gemini-3.1-flash-image',
+    imageProvider: env.MEDIA_AI_IMAGE_PROVIDER,
+    videoProvider: env.MEDIA_AI_VIDEO_PROVIDER,
+    imageAccountId: env.MEDIA_AI_CLOUDFLARE_ACCOUNT_ID.trim(),
+    imageApiToken: env.MEDIA_AI_CLOUDFLARE_API_TOKEN.trim(),
+    imageModel: env.MEDIA_AI_IMAGE_MODEL.trim() || '@cf/black-forest-labs/flux-1-schnell',
     imageEditModel: env.MEDIA_AI_IMAGE_EDIT_MODEL.trim() || 'gemini-3.1-flash-image',
     imageAspectRatio: env.MEDIA_AI_IMAGE_ASPECT_RATIO.trim(),
     imageSize: env.MEDIA_AI_IMAGE_SIZE,
