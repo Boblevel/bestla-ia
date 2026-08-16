@@ -177,7 +177,7 @@ const DEFAULT_AUTOMATION: AutomationSettings = {
   reactions: [],
   customerAi: {
     enabled: false,
-    instructions: 'Réponds comme un service client professionnel, poli et respectueux. Sois bref, précis et utile. Ne promets jamais un prix, un délai ou une disponibilité qui ne figure pas dans les informations de l’entreprise. Si une information manque, propose de transmettre la demande au responsable.',
+    instructions: 'Réponds naturellement à ma place, comme dans une vraie conversation WhatsApp. Sois poli, chaleureux, bref, précis et varie tes formulations. Ne répète pas les salutations dans une conversation déjà commencée. N’invente jamais un prix, un délai ou une disponibilité qui ne figure pas dans les informations disponibles. Si une information importante manque, prends la demande en compte pour que je puisse reprendre personnellement.',
   },
   faq: {},
   notes: {},
