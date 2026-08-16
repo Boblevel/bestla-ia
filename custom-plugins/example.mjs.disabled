@@ -1,0 +1,10 @@
+// Renomme ce fichier en example.mjs pour l'activer.
+export default {
+  name: 'bonjour',
+  aliases: ['salut'],
+  description: 'Exemple de commande personnalisée pour Bestla iA.',
+  category: 'Général',
+  async execute(ctx) {
+    await ctx.reply(`Bonjour ${ctx.message.pushName || 'à toi'} ! Je suis Bestla iA.`)
+  },
+}
