@@ -16,25 +16,7 @@ function providerError(status: number, payload: unknown): AiServiceError {
   const root = record(payload)
   const nested = record(root?.error)
   const message = stringValue(nested?.message) ?? stringValue(root?.message)
-  return new AiServiceError(message ? `Le fournisseur IA a refusé la demande (${status}) : ${message.slice(0, 180)}` : `Le fournisseur IA a refusé la demande (${status}).`)
-}
-
-function openAiCompatibleText(payload: unknown): string | undefined {
-  const root = record(payload)
-  const choices = Array.isArray(root?.choices) ? root.choices : []
-  const first = record(choices[0])
-  const message = record(first?.message)
-  const content = message?.content
-  if (typeof content === 'string' && content.trim()) return content.trim()
-  if (Array.isArray(content)) {
-    const text = content
-      .map((part) => record(part))
-      .map((part) => stringValue(part?.text) ?? stringValue(part?.content) ?? '')
-      .join('\n')
-      .trim()
-    if (text) return text
-  }
-  return undefined
+  return new AiServiceError(message ? `Gemini a refusé la demande (${status}) : ${message.slice(0, 180)}` : `Gemini a refusé la demande (${status}).`)
 }
 
 function geminiText(payload: unknown): string | undefined {
@@ -59,7 +41,7 @@ export class AiService {
   constructor(private readonly config: AppConfig) {}
 
   isConfigured(): boolean {
-    return this.config.ai.provider !== 'none' && Boolean(this.config.ai.apiKey && this.config.ai.model)
+    return Boolean(this.config.ai.apiKey && this.config.ai.model)
   }
 
   status(): { provider: string; model: string; configured: boolean } {
@@ -80,36 +62,7 @@ export class AiService {
     const text = prompt.trim().slice(0, 8_000)
     if (!text) throw new AiServiceError('Le texte à envoyer à l’assistant IA est vide.')
 
-    if (this.config.ai.provider === 'gemini') {
-      return this.completeGemini(instruction, text)
-    }
-    return this.completeOpenAiCompatible(instruction, text)
-  }
-
-  private async completeOpenAiCompatible(instruction: string, prompt: string): Promise<string> {
-    const baseUrl = this.config.ai.baseUrl || 'https://api.openai.com/v1'
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(45_000),
-      headers: {
-        authorization: `Bearer ${this.config.ai.apiKey}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: this.config.ai.model,
-        messages: [
-          { role: 'system', content: `${instruction}\nRéponds en français clair. Ne révèle jamais de clé, identifiant ou donnée privée.` },
-          { role: 'user', content: prompt },
-        ],
-        max_tokens: this.config.ai.maxOutputTokens,
-        temperature: 0.5,
-      }),
-    })
-    const payload = (await response.json().catch(() => ({}))) as unknown
-    if (!response.ok) throw providerError(response.status, payload)
-    const result = openAiCompatibleText(payload)
-    if (!result) throw new AiServiceError('Le fournisseur IA n’a pas renvoyé de texte exploitable.')
-    return result.slice(0, 6_000)
+    return this.completeGemini(instruction, text)
   }
 
   private async completeGemini(instruction: string, prompt: string): Promise<string> {
@@ -133,7 +86,7 @@ export class AiService {
     const payload = (await response.json().catch(() => ({}))) as unknown
     if (!response.ok) throw providerError(response.status, payload)
     const result = geminiText(payload)
-    if (!result) throw new AiServiceError('Le fournisseur IA n’a pas renvoyé de texte exploitable.')
+    if (!result) throw new AiServiceError('Gemini n’a pas renvoyé de texte exploitable.')
     return result.slice(0, 6_000)
   }
 }

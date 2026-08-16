@@ -1,7 +1,3 @@
-import { spawn } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
 import type { AppConfig } from '../config.js'
 
 export class MediaAiError extends Error {}
@@ -26,19 +22,9 @@ function mediaError(status: number, payload: unknown): MediaAiError {
   const message = providerMessage(payload)
   return new MediaAiError(
     message
-      ? `Le fournisseur média IA a refusé la demande (${status}) : ${message.slice(0, 220)}`
-      : `Le fournisseur média IA a refusé la demande (${status}).`,
+      ? `Gemini a refusé la demande média (${status}) : ${message.slice(0, 220)}`
+      : `Gemini a refusé la demande média (${status}).`,
   )
-}
-
-function shouldUseAnonymousImageFallback(status: number, payload: unknown): boolean {
-  if ([401, 402, 429, 502, 503].includes(status)) return true
-  const message = (providerMessage(payload) ?? '').toLowerCase()
-  return message.includes('insufficient balance')
-    || message.includes('balance')
-    || message.includes('payment')
-    || message.includes('quota')
-    || message.includes('credit')
 }
 
 function normalizeImageMime(value: string): string {
@@ -57,56 +43,6 @@ async function responseBuffer(response: Response, maxBytes = 100 * 1024 * 1024):
   const buffer = Buffer.from(await response.arrayBuffer())
   if (buffer.length > maxBytes) throw new MediaAiError('Le fichier généré dépasse la taille maximale de sécurité (100 Mo).')
   return { buffer, mimetype: response.headers.get('content-type')?.split(';')[0] || 'application/octet-stream' }
-}
-
-function extractOpenAiImage(payload: unknown): { data?: string; url?: string } | undefined {
-  const root = record(payload)
-  const data = Array.isArray(root?.data) ? root.data : []
-  const first = record(data[0])
-  const b64 = stringValue(first?.b64_json)
-  const url = stringValue(first?.url)
-  return b64 || url ? { ...(b64 ? { data: b64 } : {}), ...(url ? { url } : {}) } : undefined
-}
-
-async function downloadPublicHttps(url: string, maxBytes = 100 * 1024 * 1024): Promise<{ buffer: Buffer; mimetype: string }> {
-  const parsed = new URL(url)
-  if (parsed.protocol !== 'https:') throw new MediaAiError('Le fournisseur a renvoyé une URL non sécurisée.')
-  const response = await fetch(parsed, { redirect: 'follow', signal: AbortSignal.timeout(120_000) })
-  if (!response.ok) throw new MediaAiError(`Téléchargement du média impossible (${response.status}).`)
-  return responseBuffer(response, maxBytes)
-}
-
-function imageDimensions(aspectRatio: string, size: '512px' | '1K' | '2K' | '4K'): { width: number; height: number } {
-  const base = size === '512px' ? 512 : size === '2K' ? 1536 : size === '4K' ? 2048 : 1024
-  if (aspectRatio === '9:16') return { width: Math.round(base * 0.75), height: Math.round(base * 1.333) }
-  if (aspectRatio === '16:9') return { width: Math.round(base * 1.333), height: Math.round(base * 0.75) }
-  return { width: base, height: base }
-}
-
-async function runFfmpeg(args: string[]): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] })
-    let stderr = ''
-    child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8') })
-    child.once('error', reject)
-    child.once('close', (code) => {
-      if (code === 0) resolve()
-      else reject(new MediaAiError(stderr.trim().slice(-500) || 'FFmpeg n’a pas pu lire la vidéo source.'))
-    })
-  })
-}
-
-async function firstFrame(video: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'bestla-video-'))
-  const input = path.join(directory, video.mimetype.includes('webm') ? 'source.webm' : 'source.mp4')
-  const output = path.join(directory, 'frame.jpg')
-  try {
-    await writeFile(input, video.buffer)
-    await runFfmpeg(['-hide_banner', '-loglevel', 'error', '-y', '-i', input, '-frames:v', '1', '-q:v', '2', output])
-    return { buffer: await readFile(output), mimetype: 'image/jpeg' }
-  } finally {
-    await rm(directory, { recursive: true, force: true }).catch(() => undefined)
-  }
 }
 
 function extractGeminiImage(payload: unknown): { data: string; mimetype: string } | undefined {
@@ -164,15 +100,18 @@ function fileIdFromUri(uri: string): string | undefined {
 
 async function downloadGemini(url: string, apiKey: string, maxBytes = 100 * 1024 * 1024): Promise<{ buffer: Buffer; mimetype: string }> {
   const parsed = new URL(url)
-  if (parsed.protocol !== 'https:') throw new MediaAiError('Le fournisseur a renvoyé une URL vidéo non sécurisée.')
-  const response = await fetch(parsed, { redirect: 'follow', signal: AbortSignal.timeout(120_000), headers: { 'x-goog-api-key': apiKey } })
-  if (!response.ok) throw new MediaAiError(`Téléchargement de la vidéo impossible (${response.status}).`)
+  if (parsed.protocol !== 'https:') throw new MediaAiError('Gemini a renvoyé une URL vidéo non sécurisée.')
+  const response = await fetch(parsed, {
+    redirect: 'follow',
+    signal: AbortSignal.timeout(120_000),
+    headers: { 'x-goog-api-key': apiKey },
+  })
+  if (!response.ok) throw new MediaAiError(`Téléchargement de la vidéo Gemini impossible (${response.status}).`)
   return responseBuffer(response, maxBytes)
 }
 
 export class MediaAiService {
   private readonly geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta'
-  private readonly pollinationsBaseUrl = 'https://gen.pollinations.ai'
 
   constructor(private readonly config: AppConfig) {}
 
@@ -184,205 +123,32 @@ export class MediaAiService {
     return {
       enabled: this.config.mediaAi.enabled,
       configured: this.isConfigured(),
-      provider: this.config.mediaAi.provider,
+      provider: 'gemini',
       imageModel: this.config.mediaAi.imageModel,
       videoModel: this.config.mediaAi.videoModel,
     }
   }
 
   async generateImage(prompt: string): Promise<{ buffer: Buffer; mimetype: string }> {
-    return this.config.mediaAi.provider === 'pollinations' ? this.pollinationsGenerateImage(prompt) : this.geminiImageRequest(prompt)
+    return this.geminiImageRequest(prompt)
   }
 
   async editImage(prompt: string, image: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
-    return this.config.mediaAi.provider === 'pollinations' ? this.pollinationsEditImage(prompt, image) : this.geminiImageRequest(prompt, image)
+    return this.geminiImageRequest(prompt, image)
   }
 
   async generateVideo(prompt: string, image?: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
-    return this.config.mediaAi.provider === 'pollinations'
-      ? this.pollinationsVideo(prompt, image)
-      : this.geminiVideoRequest(prompt, image ? { kind: 'image', ...image } : undefined)
+    return this.geminiVideoRequest(prompt, image ? { kind: 'image', ...image } : undefined)
   }
 
   async editVideo(prompt: string, video: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
-    if (this.config.mediaAi.provider === 'pollinations') {
-      const frame = await firstFrame(video)
-      const enrichedPrompt = `Recrée cette vidéo à partir de son image de départ en appliquant cette modification : ${prompt}. Garde une continuité visuelle naturelle, mouvements cinématiques cohérents et sujet principal reconnaissable.`
-      return this.pollinationsVideo(enrichedPrompt, frame)
-    }
     return this.geminiVideoRequest(prompt, { kind: 'video', ...video })
   }
 
   private ensureConfigured(): void {
-    if (!this.isConfigured()) throw new MediaAiError('La génération média IA est désactivée. Ouvre bestla > Configuration > API IA automatique, puis autorise la connexion.')
-  }
-
-  private authHeaders(): Record<string, string> {
-    return { authorization: `Bearer ${this.config.mediaAi.apiKey}`, 'Pollinations-Safe': 'privacy,secrets,sexual,violence' }
-  }
-
-  private async anonymousPollinationsImage(prompt: string): Promise<{ buffer: Buffer; mimetype: string }> {
-    const text = prompt.trim().slice(0, 2_000)
-    if (!text) throw new MediaAiError('Le prompt de génération est vide.')
-    const { width, height } = imageDimensions(this.config.mediaAi.imageAspectRatio, this.config.mediaAi.imageSize)
-    const params = new URLSearchParams({
-      model: 'flux',
-      width: String(Math.min(width, 1280)),
-      height: String(Math.min(height, 1280)),
-      seed: '-1',
-      nologo: 'true',
-      enhance: 'true',
-      safe: 'true',
-    })
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(text)}?${params.toString()}`
-    const response = await fetch(url, {
-      redirect: 'follow',
-      signal: AbortSignal.timeout(180_000),
-      headers: { 'user-agent': 'Bestla-iA-V4/4.0.0' },
-    })
-    if (!response.ok) {
-      throw new MediaAiError(`Le mode image gratuit temporaire est indisponible (${response.status}).`)
+    if (!this.isConfigured()) {
+      throw new MediaAiError('Gemini média n’est pas activé ou aucune clé Gemini n’est configurée. Ouvre bestla > Configuration > Clé Gemini.')
     }
-    const result = await responseBuffer(response, 25 * 1024 * 1024)
-    if (!result.mimetype.startsWith('image/')) throw new MediaAiError('Le mode image gratuit n’a pas renvoyé une image exploitable.')
-    return { buffer: result.buffer, mimetype: result.mimetype }
-  }
-
-  private async animateImageLocally(image: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
-    const directory = await mkdtemp(path.join(os.tmpdir(), 'bestla-local-video-'))
-    const input = path.join(directory, image.mimetype.includes('png') ? 'source.png' : 'source.jpg')
-    const output = path.join(directory, 'bestla.mp4')
-    const portrait = this.config.mediaAi.videoAspectRatio === '9:16'
-    const width = portrait ? 720 : 1280
-    const height = portrait ? 1280 : 720
-    const frames = 5 * 25
-    try {
-      await writeFile(input, image.buffer)
-      const filter = [
-        `scale=${width}:${height}:force_original_aspect_ratio=increase`,
-        `crop=${width}:${height}`,
-        `zoompan=z='min(zoom+0.0015,1.12)':d=${frames}:s=${width}x${height}:fps=25`,
-        'format=yuv420p',
-      ].join(',')
-      await runFfmpeg([
-        '-hide_banner', '-loglevel', 'error', '-y',
-        '-loop', '1', '-i', input,
-        '-vf', filter,
-        '-t', '5', '-r', '25',
-        '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p',
-        '-movflags', '+faststart', output,
-      ])
-      return { buffer: await readFile(output), mimetype: 'video/mp4' }
-    } finally {
-      await rm(directory, { recursive: true, force: true }).catch(() => undefined)
-    }
-  }
-
-  private async pollinationsGenerateImage(prompt: string): Promise<{ buffer: Buffer; mimetype: string }> {
-    this.ensureConfigured()
-    const text = prompt.trim().slice(0, 8_000)
-    if (!text) throw new MediaAiError('Le prompt de génération est vide.')
-    const { width, height } = imageDimensions(this.config.mediaAi.imageAspectRatio, this.config.mediaAi.imageSize)
-    const response = await fetch(`${this.pollinationsBaseUrl}/v1/images/generations`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(600_000),
-      headers: { ...this.authHeaders(), 'content-type': 'application/json' },
-      body: JSON.stringify({
-        prompt: text,
-        model: this.config.mediaAi.imageModel || 'zimage',
-        n: 1,
-        size: `${width}x${height}`,
-        response_format: 'b64_json',
-        safe: 'privacy,secrets,sexual,violence',
-      }),
-    })
-    const payload = await responseJson(response)
-    if (!response.ok) {
-      if (shouldUseAnonymousImageFallback(response.status, payload)) return this.anonymousPollinationsImage(text)
-      throw mediaError(response.status, payload)
-    }
-    const result = extractOpenAiImage(payload)
-    if (!result) throw new MediaAiError('Pollinations n’a pas renvoyé d’image exploitable.')
-    if (result.data) return { buffer: Buffer.from(result.data, 'base64'), mimetype: 'image/png' }
-    if (result.url) return downloadPublicHttps(result.url)
-    throw new MediaAiError('Image Pollinations introuvable dans la réponse.')
-  }
-
-  private async pollinationsEditImage(prompt: string, image: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
-    this.ensureConfigured()
-    const text = prompt.trim().slice(0, 8_000)
-    if (!text) throw new MediaAiError('Le prompt de modification est vide.')
-    const { width, height } = imageDimensions(this.config.mediaAi.imageAspectRatio, this.config.mediaAi.imageSize)
-    const form = new FormData()
-    form.append('image', new Blob([new Uint8Array(image.buffer)], { type: normalizeImageMime(image.mimetype) }), image.mimetype.includes('jpeg') ? 'source.jpg' : 'source.png')
-    form.append('prompt', text)
-    form.append('model', this.config.mediaAi.imageEditModel || 'kontext')
-    form.append('size', `${width}x${height}`)
-    const response = await fetch(`${this.pollinationsBaseUrl}/v1/images/edits`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(600_000),
-      headers: this.authHeaders(),
-      body: form,
-    })
-    const payload = await responseJson(response)
-    if (!response.ok) throw mediaError(response.status, payload)
-    const result = extractOpenAiImage(payload)
-    if (!result) throw new MediaAiError('Pollinations n’a pas renvoyé d’image modifiée exploitable.')
-    if (result.data) return { buffer: Buffer.from(result.data, 'base64'), mimetype: 'image/png' }
-    if (result.url) return downloadPublicHttps(result.url)
-    throw new MediaAiError('Image modifiée introuvable dans la réponse.')
-  }
-
-  private async pollinationsUpload(media: { buffer: Buffer; mimetype: string }, filename: string): Promise<string> {
-    this.ensureConfigured()
-    const form = new FormData()
-    form.append('file', new Blob([new Uint8Array(media.buffer)], { type: media.mimetype }), filename)
-    const response = await fetch(`${this.pollinationsBaseUrl}/upload`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(120_000),
-      headers: this.authHeaders(),
-      body: form,
-    })
-    const payload = await responseJson(response)
-    if (!response.ok) throw mediaError(response.status, payload)
-    const url = stringValue(record(payload)?.url)
-    if (!url) throw new MediaAiError('Le fournisseur n’a pas renvoyé l’URL du média temporaire.')
-    return url
-  }
-
-  private async pollinationsVideo(prompt: string, image?: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
-    this.ensureConfigured()
-    const text = prompt.trim().slice(0, 4_000)
-    if (!text) throw new MediaAiError('Le prompt vidéo est vide.')
-    const params = new URLSearchParams({
-      model: this.config.mediaAi.videoModel || 'wan-fast',
-      duration: '5',
-      aspectRatio: this.config.mediaAi.videoAspectRatio,
-      safe: 'privacy,secrets,sexual,violence',
-    })
-    if (image) {
-      try {
-        params.set('image', await this.pollinationsUpload(image, image.mimetype.includes('jpeg') ? 'reference.jpg' : 'reference.png'))
-      } catch (error) {
-        if (error instanceof MediaAiError) return this.animateImageLocally(image)
-        throw error
-      }
-    }
-    const response = await fetch(`${this.pollinationsBaseUrl}/video/${encodeURIComponent(text)}?${params.toString()}`, {
-      signal: AbortSignal.timeout(this.config.mediaAi.videoTimeoutSeconds * 1_000),
-      headers: this.authHeaders(),
-    })
-    if (!response.ok) {
-      const payload = await responseJson(response)
-      if (shouldUseAnonymousImageFallback(response.status, payload)) {
-        const fallbackImage = image ?? await this.anonymousPollinationsImage(text)
-        return this.animateImageLocally(fallbackImage)
-      }
-      throw mediaError(response.status, payload)
-    }
-    const result = await responseBuffer(response)
-    if (!result.mimetype.startsWith('video/')) throw new MediaAiError('Pollinations n’a pas renvoyé une vidéo MP4 exploitable.')
-    return { buffer: result.buffer, mimetype: result.mimetype || 'video/mp4' }
   }
 
   private async geminiImageRequest(prompt: string, image?: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
@@ -398,13 +164,17 @@ export class MediaAiService {
       body: JSON.stringify({
         model: this.config.mediaAi.imageModel,
         input,
-        response_format: { type: 'image', aspect_ratio: this.config.mediaAi.imageAspectRatio, image_size: this.config.mediaAi.imageSize },
+        response_format: {
+          type: 'image',
+          aspect_ratio: this.config.mediaAi.imageAspectRatio,
+          image_size: this.config.mediaAi.imageSize,
+        },
       }),
     })
     const payload = await responseJson(response)
     if (!response.ok) throw mediaError(response.status, payload)
     const output = extractGeminiImage(payload)
-    if (!output) throw new MediaAiError('Le fournisseur n’a pas renvoyé d’image exploitable.')
+    if (!output) throw new MediaAiError('Gemini n’a pas renvoyé d’image exploitable.')
     return { buffer: Buffer.from(output.data, 'base64'), mimetype: normalizeImageMime(output.mimetype) }
   }
 
@@ -450,13 +220,13 @@ export class MediaAiService {
       payload = await responseJson(statusResponse)
       if (!statusResponse.ok) throw mediaError(statusResponse.status, payload)
       const status = stringValue(record(payload)?.status)?.toLowerCase()
-      if (status === 'failed' || status === 'cancelled') throw new MediaAiError(providerMessage(payload) ?? 'La génération vidéo a échoué chez le fournisseur.')
+      if (status === 'failed' || status === 'cancelled') throw new MediaAiError(providerMessage(payload) ?? 'La génération vidéo Gemini a échoué.')
       output = extractGeminiVideo(payload)
       if (output || status === 'completed') break
     }
     if (!output) throw new MediaAiError(`La génération vidéo n’a pas produit de fichier avant ${this.config.mediaAi.videoTimeoutSeconds} secondes.`)
     if (output.data) return { buffer: Buffer.from(output.data, 'base64'), mimetype: output.mimetype || 'video/mp4' }
-    if (!output.uri) throw new MediaAiError('Le fournisseur n’a pas renvoyé de vidéo téléchargeable.')
+    if (!output.uri) throw new MediaAiError('Gemini n’a pas renvoyé de vidéo téléchargeable.')
     const fileId = fileIdFromUri(output.uri)
     if (fileId) {
       while (Date.now() < deadline) {
@@ -467,7 +237,7 @@ export class MediaAiService {
         const filePayload = await responseJson(fileResponse)
         if (!fileResponse.ok) throw mediaError(fileResponse.status, filePayload)
         const state = stringValue(record(filePayload)?.state)?.toUpperCase()
-        if (state === 'FAILED') throw new MediaAiError('Le traitement final de la vidéo a échoué chez le fournisseur.')
+        if (state === 'FAILED') throw new MediaAiError('Le traitement final de la vidéo Gemini a échoué.')
         if (state === 'ACTIVE' || !state) break
         await new Promise((resolve) => setTimeout(resolve, 5_000))
       }
