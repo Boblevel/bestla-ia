@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { Boom } from '@hapi/boom'
 import makeWASocket, {
@@ -10,7 +10,6 @@ import makeWASocket, {
   type WAMessage,
   type WASocket,
 } from '@whiskeysockets/baileys'
-import qrcode from 'qrcode-terminal'
 import type { AppConfig } from '../config.js'
 import type { SessionStatus } from '../types.js'
 import { normalizeUserJid } from '../utils/jid.js'
@@ -41,6 +40,36 @@ type ParticipantsHandler = (
   event: { id: string; participants: string[]; action: string },
 ) => Promise<void>
 
+type LinkingArtifactType = 'qr' | 'pairing'
+
+interface LinkingArtifact {
+  session: string
+  type: LinkingArtifactType
+  value: string
+  createdAt: string
+}
+
+async function saveLinkingArtifact(
+  dataDir: string,
+  session: string,
+  type: LinkingArtifactType,
+  value: string,
+): Promise<void> {
+  const directory = path.join(dataDir, 'linking')
+  await mkdir(directory, { recursive: true, mode: 0o700 })
+  const artifact: LinkingArtifact = {
+    session,
+    type,
+    value,
+    createdAt: new Date().toISOString(),
+  }
+  await writeFile(path.join(directory, `${session}.json`), `${JSON.stringify(artifact)}\n`, { mode: 0o600 })
+}
+
+async function clearLinkingArtifact(dataDir: string, session: string): Promise<void> {
+  await rm(path.join(dataDir, 'linking', `${session}.json`), { force: true }).catch(() => undefined)
+}
+
 export class SessionManager {
   private readonly sessions = new Map<string, ManagedSession>()
   private stopping = false
@@ -53,6 +82,7 @@ export class SessionManager {
 
   async start(): Promise<void> {
     await mkdir(path.join(this.config.dataDir, 'sessions'), { recursive: true })
+    await mkdir(path.join(this.config.dataDir, 'linking'), { recursive: true, mode: 0o700 })
     await Promise.all(this.config.sessionNames.map((name) => this.connect(name)))
   }
 
@@ -133,22 +163,23 @@ export class SessionManager {
             session.pairingRequested = true
             try {
               const code = await sock.requestPairingCode(phone)
-              logger.info({ session: name }, 'Code de liaison WhatsApp généré')
-              process.stdout.write(`\n[${name}] CODE DE LIAISON : ${code}\n\n`)
+              await saveLinkingArtifact(this.config.dataDir, name, 'pairing', code)
+              logger.info({ session: name }, 'Code de liaison WhatsApp prêt dans le panneau Numéros WhatsApp')
             } catch (error) {
               session.pairingRequested = false
               logger.error({ err: error, session: name }, 'Impossible de générer le code de liaison')
             }
           }
         } else {
-          process.stdout.write(`\n[${name}] Scanne ce QR dans WhatsApp > Appareils connectés :\n`)
-          qrcode.generate(qr, { small: true })
+          await saveLinkingArtifact(this.config.dataDir, name, 'qr', qr)
+          logger.info({ session: name }, 'QR WhatsApp prêt dans le panneau Numéros WhatsApp')
         }
       }
 
       if (connection === 'open') {
         session.connected = true
         session.pairingRequested = false
+        await clearLinkingArtifact(this.config.dataDir, name)
         logger.info({ session: name, jid: sock.user?.id }, 'Session WhatsApp connectée')
       }
 
