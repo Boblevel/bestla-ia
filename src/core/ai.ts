@@ -73,7 +73,7 @@ export class AiService {
   async complete(instruction: string, prompt: string): Promise<string> {
     if (!this.isConfigured()) {
       throw new AiServiceError(
-        'L’assistant IA n’est pas configuré. Ouvre le panneau bestla > Configuration > API IA automatique, puis autorise Bestla.',
+        'L’assistant IA n’est pas configuré. Vérifie la configuration IA de Bestla (.env ou panneau Configuration), puis réessaie.',
       )
     }
 
@@ -115,11 +115,14 @@ export class AiService {
   private async completeGemini(instruction: string, prompt: string): Promise<string> {
     const model = encodeURIComponent(this.config.ai.model)
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(this.config.ai.apiKey)}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         method: 'POST',
         signal: AbortSignal.timeout(45_000),
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          'x-goog-api-key': this.config.ai.apiKey,
+        },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: `${instruction}\nRéponds en français clair. Ne révèle jamais de clé, identifiant ou donnée privée.` }] },
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
