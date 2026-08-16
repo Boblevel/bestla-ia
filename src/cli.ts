@@ -126,6 +126,66 @@ function print(message = ''): void {
   output.write(`${message}\n`)
 }
 
+class ProgressDisplay {
+  private current = 0
+  private spinnerIndex = 0
+  private readonly spinners = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+
+  set(percent: number, label: string): void {
+    const target = Math.max(this.current, Math.min(100, Math.round(percent)))
+    this.current = target
+    this.render(label)
+  }
+
+  async step<T>(targetPercent: number, label: string, task: () => Promise<T>): Promise<T> {
+    const target = Math.max(this.current, Math.min(100, Math.round(targetPercent)))
+    let displayed = this.current
+    let timer: ReturnType<typeof setInterval> | undefined
+
+    if (output.isTTY) {
+      timer = setInterval(() => {
+        if (displayed < Math.max(this.current, target - 1)) {
+          const gap = target - displayed
+          displayed = Math.min(target - 1, displayed + Math.max(1, Math.ceil(gap / 10)))
+          this.current = Math.max(this.current, displayed)
+        }
+        this.render(label, this.spinners[this.spinnerIndex % this.spinners.length])
+        this.spinnerIndex += 1
+      }, 180)
+    } else {
+      this.render(label)
+    }
+
+    try {
+      const result = await task()
+      this.current = target
+      this.render(label, target < 100 ? '✓' : '')
+      return result
+    } catch (error) {
+      if (output.isTTY) output.write('\n')
+      throw error
+    } finally {
+      if (timer) clearInterval(timer)
+    }
+  }
+
+  finish(label = 'Terminé'): void {
+    this.current = 100
+    this.render(label, '✓')
+    output.write('\n')
+  }
+
+  private render(label: string, spinner = ''): void {
+    const width = 28
+    const filled = Math.floor((this.current * width) / 100)
+    const empty = Math.max(0, width - filled)
+    const bar = `${'█'.repeat(filled)}${'░'.repeat(empty)}`
+    const line = `${cyan(`[${bar}]`)} ${green(`${String(this.current).padStart(3, ' ')}%`)}  ${label}${spinner ? ` ${spinner}` : ''}`
+    if (output.isTTY) output.write(`\r\u001b[2K${line}`)
+    else print(line)
+  }
+}
+
 function panelRule(): void {
   print(blue('─'.repeat(PANEL_WIDTH + 2)))
 }
@@ -579,7 +639,7 @@ async function pm2ProcessExists(): Promise<boolean> {
   return Boolean(await getPm2Application())
 }
 
-async function controlProcess(action: 'start' | 'stop' | 'restart'): Promise<void> {
+async function controlProcess(action: 'start' | 'stop' | 'restart', quiet = false): Promise<void> {
   if (!(await pm2Installed())) throw new Error('PM2 est absent. Lance : bash installer-vps.sh')
   const processExists = await pm2ProcessExists()
   if (action === 'start') {
@@ -587,7 +647,7 @@ async function controlProcess(action: 'start' | 'stop' | 'restart'): Promise<voi
     else await requireSuccess('pm2', ['start', 'ecosystem.config.cjs', '--only', PROCESS_NAME, '--update-env'])
   } else if (action === 'stop') {
     if (!processExists) {
-      print('Le bot est déjà arrêté ou non enregistré dans PM2.')
+      if (!quiet) print('Le bot est déjà arrêté ou non enregistré dans PM2.')
       return
     }
     await requireSuccess('pm2', ['stop', PROCESS_NAME])
@@ -598,12 +658,12 @@ async function controlProcess(action: 'start' | 'stop' | 'restart'): Promise<voi
   }
   await requireSuccess('pm2', ['save'])
   const message = action === 'stop' ? 'Bestla iA est arrêté.' : action === 'start' ? 'Bestla iA est démarré.' : 'Bestla iA est redémarré.'
-  print(green(`✓ ${message}`))
+  if (!quiet) print(green(`✓ ${message}`))
 }
 
 async function restartAfterConfiguration(message: string): Promise<void> {
   print(green(`✓ ${message}`))
-  await controlProcess('restart')
+  await controlProcess('restart', true)
   print(gray('La configuration est appliquée. La liaison WhatsApp se gère dans Numéros WhatsApp.'))
 }
 
@@ -929,9 +989,11 @@ async function listBackupsData(): Promise<BackupEntry[]> {
 }
 
 async function createBackup(): Promise<void> {
-  const environment = await readEnvironment()
+  const progress = new ProgressDisplay()
+  progress.set(0, 'Préparation de la sauvegarde')
+  const environment = await progress.step(20, 'Lecture de la configuration', readEnvironment)
   const directory = backupDirectory()
-  await mkdir(directory, { recursive: true, mode: 0o700 })
+  await progress.step(35, 'Préparation du dossier', () => mkdir(directory, { recursive: true, mode: 0o700 }))
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   const archive = path.join(directory, `bestla-${stamp}.tar.gz`)
   const configuredDataDirectory = dataDirectory(environment.values)
@@ -940,8 +1002,9 @@ async function createBackup(): Promise<void> {
   if (relativeDataDirectory && !relativeDataDirectory.startsWith('..') && !path.isAbsolute(relativeDataDirectory) && await exists(configuredDataDirectory)) {
     argumentsForTar.push(relativeDataDirectory)
   }
-  await requireSuccess('tar', argumentsForTar, APP_DIRECTORY)
+  await progress.step(90, 'Compression des données', () => requireSuccess('tar', argumentsForTar, APP_DIRECTORY))
   await chmod(archive, 0o600).catch(() => undefined)
+  progress.finish('Sauvegarde terminée')
   print(green(`✓ Sauvegarde créée : ${archive}`))
   print(yellow('Elle contient les réglages et sessions WhatsApp : garde-la strictement privée.'))
 }
@@ -971,17 +1034,26 @@ async function restoreBackup(args: string[]): Promise<void> {
   if (!/^bestla-[A-Za-z0-9T_.-]+\.tar\.gz$/.test(name)) throw new Error('Nom de sauvegarde invalide.')
   const backup = (await listBackupsData()).find((entry) => entry.name === name)
   if (!backup) throw new Error('Sauvegarde introuvable.')
+
   const contents = await requireSuccess('tar', ['-tzf', backup.filePath])
   const members = contents.stdout.split('\n').map((item) => item.trim()).filter(Boolean)
   if (!members.includes('.env') || members.some((entry) => entry.startsWith('/') || entry.split('/').includes('..') || (entry !== '.env' && !entry.startsWith('data/')))) {
-    throw new Error('Cette archive ne correspond pas à une sauvegarde Bestla iA valide.')
+    throw new Error('Cette archive ne correspond pas à une sauvegarde valide.')
   }
+
+  // Crée d'abord un point de sécurité complet. Cette opération affiche sa
+  // propre progression 0→100, puis la restauration démarre avec une nouvelle barre.
   await createBackup()
+
+  const progress = new ProgressDisplay()
+  progress.set(0, 'Préparation de la restauration')
   const processExists = await pm2ProcessExists()
-  if (processExists) await controlProcess('stop')
-  await requireSuccess('tar', ['-xzf', backup.filePath, '-C', APP_DIRECTORY, '--no-same-owner'])
+  if (processExists) await progress.step(20, 'Arrêt temporaire du service', () => controlProcess('stop', true))
+  else progress.set(20, 'Service déjà arrêté')
+  await progress.step(82, 'Restauration des données', () => requireSuccess('tar', ['-xzf', backup.filePath, '-C', APP_DIRECTORY, '--no-same-owner']))
   await chmod(ENV_PATH, 0o600).catch(() => undefined)
-  if (processExists) await controlProcess('restart')
+  if (processExists) await progress.step(96, 'Redémarrage du service', () => controlProcess('restart', true))
+  progress.finish('Restauration terminée')
   print(green(`✓ Sauvegarde restaurée : ${name}`))
 }
 
@@ -990,9 +1062,16 @@ async function cleanBackups(args: string[]): Promise<void> {
   const confirmation = args[1]?.toLowerCase()
   if (!Number.isInteger(keep) || keep < 1 || keep > 50) throw new Error('Indique le nombre de sauvegardes à conserver (1 à 50).')
   if (confirmation !== 'confirmer') throw new Error(`Pour confirmer : bestla sauvegardes nettoyer ${keep} confirmer`)
-  const backups = await listBackupsData()
+  const progress = new ProgressDisplay()
+  progress.set(0, 'Analyse des sauvegardes')
+  const backups = await progress.step(25, 'Inventaire des archives', listBackupsData)
   const toDelete = backups.slice(keep)
-  for (const backup of toDelete) await rm(backup.filePath, { force: true })
+  const total = Math.max(1, toDelete.length)
+  for (const [index, backup] of toDelete.entries()) {
+    await rm(backup.filePath, { force: true })
+    progress.set(25 + Math.floor(((index + 1) / total) * 70), 'Suppression des anciennes archives')
+  }
+  progress.finish('Nettoyage des sauvegardes terminé')
   print(green(`✓ ${toDelete.length} ancienne(s) sauvegarde(s) supprimée(s). ${Math.min(keep, backups.length)} conservée(s).`))
 }
 
@@ -1066,22 +1145,27 @@ function localIpAddress(): string {
 
 async function doctor(): Promise<void> {
   heading('DIAGNOSTIC BESTLA iA', 'Vérification du bot et de son environnement')
-  const node = await run('node', ['--version']).catch(() => ({ code: 1, stdout: '', stderr: '' }))
-  const npm = await run('npm', ['--version']).catch(() => ({ code: 1, stdout: '', stderr: '' }))
-  const ffmpeg = await commandAvailable('ffmpeg')
-  const pm2 = await pm2Installed()
-  const packageExists = await exists(path.join(APP_DIRECTORY, 'package.json'))
-  const environmentExists = await exists(ENV_PATH)
-  print(`Système          : ${await getOperatingSystemName()} (${detectedPackageManager()})`)
+  const progress = new ProgressDisplay()
+  progress.set(0, 'Initialisation du diagnostic')
+  const node = await progress.step(18, 'Vérification Node.js', async () => run('node', ['--version']).catch(() => ({ code: 1, stdout: '', stderr: '' })))
+  const npm = await progress.step(34, 'Vérification npm', async () => run('npm', ['--version']).catch(() => ({ code: 1, stdout: '', stderr: '' })))
+  const ffmpeg = await progress.step(50, 'Vérification FFmpeg', () => commandAvailable('ffmpeg'))
+  const pm2 = await progress.step(66, 'Vérification PM2', pm2Installed)
+  const packageExists = await progress.step(78, 'Vérification des fichiers', () => exists(path.join(APP_DIRECTORY, 'package.json')))
+  const environmentExists = await progress.step(88, 'Vérification de la configuration', () => exists(ENV_PATH))
+  const operatingSystem = await progress.step(96, 'Lecture du système', getOperatingSystemName)
+  const sessions = environmentExists ? await getSessionStates() : undefined
+  progress.finish('Diagnostic terminé')
+  print(`Système          : ${operatingSystem} (${detectedPackageManager()})`)
   print(`Dossier projet   : ${packageExists ? green('✓') : red('✗')} ${APP_DIRECTORY}`)
   print(`Node.js          : ${node.code === 0 ? green(`✓ ${node.stdout.trim()}`) : red('✗ absent')}`)
   print(`npm              : ${npm.code === 0 ? green(`✓ ${npm.stdout.trim()}`) : red('✗ absent')}`)
   print(`FFmpeg           : ${ffmpeg ? green('✓ disponible') : yellow('✗ absent - audio/vidéo indisponibles')}`)
   print(`PM2              : ${pm2 ? green('✓ disponible') : red('✗ absent')}`)
   print(`.env             : ${environmentExists ? green('✓ présent') : red('✗ absent')}`)
-  if (environmentExists) {
+  if (sessions) {
     print('')
-    printSessionRows((await getSessionStates()).sessions)
+    printSessionRows(sessions.sessions)
   }
 }
 
@@ -1096,13 +1180,16 @@ async function updateFromGit(args: string[]): Promise<void> {
   const dirty = await requireSuccess('git', ['status', '--porcelain'])
   if (dirty.stdout.trim()) throw new Error('Le dossier contient des modifications locales. Sauvegarde-les ou publie-les avant la mise à jour.')
   heading('MISE À JOUR BESTLA iA', 'Vérification, tests et redémarrage sécurisé')
-  await requireSuccess('git', ['pull', '--ff-only'])
-  await requireSuccess('npm', ['ci'])
-  await requireSuccess('npm', ['run', 'typecheck'])
-  await requireSuccess('npm', ['test'])
-  await requireSuccess('npm', ['run', 'build'])
-  await controlProcess('restart')
-  print(green('✓ Mise à jour terminée.'))
+  const progress = new ProgressDisplay()
+  progress.set(0, 'Préparation de la mise à jour')
+  await progress.step(18, 'Téléchargement GitHub', () => requireSuccess('git', ['pull', '--ff-only']))
+  await progress.step(42, 'Dépendances Node.js', () => requireSuccess('npm', ['ci']))
+  await progress.step(58, 'Vérification TypeScript', () => requireSuccess('npm', ['run', 'typecheck']))
+  await progress.step(74, 'Tests automatiques', () => requireSuccess('npm', ['test']))
+  await progress.step(90, 'Construction', () => requireSuccess('npm', ['run', 'build']))
+  await progress.step(98, 'Redémarrage du service', () => controlProcess('restart', true))
+  progress.finish('Mise à jour terminée')
+  print(green('✓ Nouvelle version appliquée.'))
 }
 
 async function enableBootStart(): Promise<void> {
@@ -1110,14 +1197,17 @@ async function enableBootStart(): Promise<void> {
     throw new Error('Cette action demande root. Lance le panneau avec sudo.')
   }
   if (!(await pm2Installed())) throw new Error('PM2 est absent.')
+  const progress = new ProgressDisplay()
+  progress.set(0, 'Configuration du démarrage')
   if (await commandAvailable('systemctl')) {
-    await requireSuccess('pm2', ['startup', 'systemd', '-u', 'root', '--hp', '/root'])
+    await progress.step(75, 'Activation systemd', () => requireSuccess('pm2', ['startup', 'systemd', '-u', 'root', '--hp', '/root']))
   } else if (await commandAvailable('rc-service')) {
-    await requireSuccess('pm2', ['startup', 'openrc', '-u', 'root', '--hp', '/root'])
+    await progress.step(75, 'Activation OpenRC', () => requireSuccess('pm2', ['startup', 'openrc', '-u', 'root', '--hp', '/root']))
   } else {
     throw new Error('Aucun système d initialisation compatible détecté. Utilise la politique de redémarrage de ton conteneur.')
   }
-  await requireSuccess('pm2', ['save'])
+  await progress.step(95, 'Enregistrement PM2', () => requireSuccess('pm2', ['save']))
+  progress.finish('Démarrage automatique activé')
   print(green('✓ Démarrage automatique PM2 configuré.'))
 }
 
@@ -1412,7 +1502,7 @@ async function botControlPanel(reader: Interface): Promise<void> {
     if (choice === '0') return
     if (choice === '1') await safely(reader, processStatus)
     else if (choice === '2') await safely(reader, () => controlProcess('start'))
-    else if (choice === '3') await safely(reader, () => controlProcess('restart'))
+    else if (choice === '3') await safely(reader, () => controlProcess('restart', true))
     else if (choice === '4') await safely(reader, async () => {
       if (await askConfirmation(reader, 'Arrêter le bot', 'ARRETER')) await controlProcess('stop')
     })
@@ -1711,8 +1801,10 @@ async function backupsPanel(reader: Interface): Promise<void> {
 }
 
 async function cleanupWorkspaceArtifacts(): Promise<void> {
+  const progress = new ProgressDisplay()
+  progress.set(0, 'Analyse des fichiers')
   const workspace = path.dirname(APP_DIRECTORY)
-  const names = await readdir(workspace).catch(() => [] as string[])
+  const names = await progress.step(20, 'Inventaire du dossier', async () => readdir(workspace).catch(() => [] as string[]))
   const candidates = names.filter((name) =>
     /^bestla-v[\d.]+-test$/.test(name)
     || /^bestla-ia-bot-v[\d.].*\.zip$/.test(name)
@@ -1720,35 +1812,42 @@ async function cleanupWorkspaceArtifacts(): Promise<void> {
     || /^sauvegarde-complete-avant-v[\d.]+-/.test(name),
   )
   let removed = 0
-  for (const name of candidates) {
+  const candidateTotal = Math.max(1, candidates.length)
+  for (const [index, name] of candidates.entries()) {
     await rm(path.join(workspace, name), { recursive: true, force: true })
     removed += 1
+    progress.set(20 + Math.floor(((index + 1) / candidateTotal) * 45), 'Suppression des migrations')
   }
 
-  // Pour ne pas sacrifier toute possibilité de récupération, on conserve
-  // uniquement la sauvegarde privée structurée la plus récente.
-  const backups = await listBackupsData()
+  const backups = await progress.step(75, 'Analyse des sauvegardes', listBackupsData)
   const oldBackups = backups.slice(1)
-  for (const backup of oldBackups) await rm(backup.filePath, { force: true })
-
-  print(green(`✓ Nettoyage terminé. ${removed} ancien(s) dossier(s)/ZIP de migration supprimé(s).`))
+  const backupTotal = Math.max(1, oldBackups.length)
+  for (const [index, backup] of oldBackups.entries()) {
+    await rm(backup.filePath, { force: true })
+    progress.set(75 + Math.floor(((index + 1) / backupTotal) * 22), 'Rotation des sauvegardes')
+  }
+  progress.finish('Nettoyage terminé')
+  print(green(`✓ ${removed} ancien(s) dossier(s)/ZIP de migration supprimé(s).`))
   print(green(`✓ ${oldBackups.length} ancienne(s) sauvegarde(s) privée(s) supprimée(s).`))
   print(gray(`Conservé : ${APP_DIRECTORY}, tes sessions actuelles et ${backups.length ? 'la sauvegarde privée la plus récente' : 'aucune sauvegarde privée inexistante'}.`))
 }
 
 async function uninstallBestlaCompletely(): Promise<void> {
   if (typeof process.getuid === 'function' && process.getuid() !== 0) throw new Error('Cette action demande root.')
+  const progress = new ProgressDisplay()
+  progress.set(0, 'Préparation de la désinstallation')
 
   if (await pm2ProcessExists()) {
-    await run('pm2', ['delete', PROCESS_NAME])
-    await run('pm2', ['save'])
-  }
+    await progress.step(20, 'Arrêt du service', async () => {
+      await run('pm2', ['delete', PROCESS_NAME])
+      await run('pm2', ['save'])
+    })
+  } else progress.set(20, 'Service déjà arrêté')
 
   const launcherPath = '/usr/local/bin/bestla'
   if (await exists(launcherPath)) await rm(launcherPath, { force: true })
+  progress.set(35, 'Suppression de la commande')
 
-  // Supprime uniquement les traces PM2 appartenant à Bestla. On ne touche
-  // ni à PM2 lui-même, ni aux journaux/processus des autres applications.
   const pm2Home = path.join(os.homedir(), '.pm2')
   for (const directory of ['logs', 'pids']) {
     const target = path.join(pm2Home, directory)
@@ -1757,18 +1856,16 @@ async function uninstallBestlaCompletely(): Promise<void> {
       if (name.startsWith(PROCESS_NAME)) await rm(path.join(target, name), { force: true })
     }
   }
+  progress.set(55, 'Suppression des journaux dédiés')
 
   const workspace = path.dirname(APP_DIRECTORY)
   if (path.basename(workspace) === 'bestla-ia') {
     await rm(workspace, { recursive: true, force: true })
   } else {
-    // BESTLA_DIR peut être personnalisé : dans ce cas on ne supprime jamais
-    // le dossier parent, qui pourrait contenir d’autres services.
     await rm(APP_DIRECTORY, { recursive: true, force: true })
   }
+  progress.set(85, 'Suppression des données')
 
-  // Nettoie aussi les anciens emplacements temporaires utilisés par les
-  // premières versions de l’installateur, sans supprimer d’outil partagé.
   for (const legacy of [
     '/root/bestla-install',
     '/root/bestla-update-v4',
@@ -1777,8 +1874,8 @@ async function uninstallBestlaCompletely(): Promise<void> {
   ]) {
     await rm(legacy, { recursive: true, force: true }).catch(() => undefined)
   }
-
-  print(green('✓ Bestla iA, ses sessions, ses données, ses sauvegardes et ses journaux PM2 ont été supprimés.'))
+  progress.finish('Désinstallation terminée')
+  print(green('✓ Code, sessions, données, sauvegardes et journaux dédiés supprimés.'))
   print(gray('Node.js, npm, PM2, FFmpeg, Git et les autres services du VPS ont été conservés.'))
   process.exit(0)
 }
