@@ -33,6 +33,7 @@ interface ManagedSession {
   pairingRequested: boolean
   reconnectTimer?: NodeJS.Timeout
   generatedIds: Map<string, number>
+  connectedAt: number
 }
 
 type MessageHandler = (runtime: SessionRuntime, message: WAMessage) => Promise<void>
@@ -180,6 +181,7 @@ export class SessionManager {
       connected: false,
       pairingRequested: false,
       generatedIds: previous?.generatedIds ?? new Map(),
+      connectedAt: previous?.connectedAt ?? 0,
     }
     this.sessions.set(name, session)
     const runtime = this.runtime(session)
@@ -211,6 +213,7 @@ export class SessionManager {
 
       if (connection === 'open') {
         session.connected = true
+        session.connectedAt = Date.now()
         session.pairingRequested = false
         await clearLinkingArtifact(this.config.dataDir, name)
         await saveSessionRuntimeStatus(
@@ -250,9 +253,46 @@ export class SessionManager {
     })
 
     sock.ev.on('messages.upsert', async ({ type, messages }) => {
-      if (type !== 'notify') return
+      logger.info(
+        { session: name, upsertType: type, count: messages.length },
+        'Événement messages.upsert reçu',
+      )
+
       for (const message of messages) {
+        const fromMe = message.key.fromMe === true
+        const timestampMs = Number(message.messageTimestamp ?? 0) * 1000
+        const ageMs = timestampMs > 0 ? Math.abs(Date.now() - timestampMs) : Number.POSITIVE_INFINITY
+        const recentAppend =
+          type === 'append' &&
+          !fromMe &&
+          session.connectedAt > 0 &&
+          Date.now() - session.connectedAt > 5_000 &&
+          ageMs <= 120_000
+
+        logger.info(
+          {
+            session: name,
+            upsertType: type,
+            messageId: message.key.id ?? null,
+            remoteJid: message.key.remoteJid ?? null,
+            remoteJidAlt: message.key.remoteJidAlt ?? null,
+            participant: message.key.participant ?? null,
+            participantAlt: message.key.participantAlt ?? null,
+            addressingMode: message.key.addressingMode ?? null,
+            fromMe,
+            hasMessage: Boolean(message.message),
+            timestampAgeMs: Number.isFinite(ageMs) ? ageMs : null,
+            recentAppend,
+          },
+          'Message WhatsApp reçu par Baileys',
+        )
+
+        // "notify" est le chemin normal des nouveaux messages. Certains flux récents
+        // peuvent cependant arriver en "append" ; on ne les traite que s'ils sont
+        // manifestement récents afin de ne jamais répondre à l'historique ancien.
+        if (type !== 'notify' && !recentAppend) continue
         if (this.isGenerated(session, message.key.id)) continue
+
         await this.onMessage(runtime, message).catch((error) => {
           logger.error({ err: error, session: name }, 'Erreur de traitement d’un message')
         })

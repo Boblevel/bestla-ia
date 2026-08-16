@@ -44,10 +44,30 @@ export class MessageRouter {
     if (chatId === 'status@broadcast' || chatId.endsWith('@newsletter')) return
 
     const fromMe = message.key.fromMe === true
-    const sender = normalizeUserJid(fromMe ? runtime.sock.user?.id : (message.key.participant ?? chatId))
+    const isGroup = chatId.endsWith('@g.us')
+    const incomingSender = isGroup
+      ? (message.key.participantAlt ?? message.key.participant ?? chatId)
+      : (message.key.remoteJidAlt ?? message.key.participantAlt ?? message.key.participant ?? chatId)
+    const sender = normalizeUserJid(fromMe ? runtime.sock.user?.id : incomingSender)
     if (!sender) return
     const body = messageText(message)
-    const isGroup = chatId.endsWith('@g.us')
+
+    logger.info(
+      {
+        session: runtime.name,
+        chatId,
+        remoteJidAlt: message.key.remoteJidAlt ?? null,
+        sender,
+        participant: message.key.participant ?? null,
+        participantAlt: message.key.participantAlt ?? null,
+        addressingMode: message.key.addressingMode ?? null,
+        fromMe,
+        isGroup,
+        bodyLength: body.length,
+        type: messageType(message),
+      },
+      'Message transmis au routeur Bestla',
+    )
     const isOwner = fromMe || this.config.ownerNumbers.some((phone) => sameUser(sender, phoneToJid(phone)))
 
     this.webhook.dispatch({
@@ -102,7 +122,7 @@ export class MessageRouter {
     }
 
     if (!parsed.isCommand && !fromMe) {
-      await this.automation.inspect({
+      const handled = await this.automation.inspect({
         sessionName: runtime.name,
         chatId,
         sender,
@@ -112,6 +132,10 @@ export class MessageRouter {
         reply: (text) => send({ text }),
         react: (emoji) => runtime.send(chatId, { react: { text: emoji, key: message.key } }),
       })
+      logger.info(
+        { session: runtime.name, chatId, sender, isGroup, handled },
+        'Résultat de l’automatisation entrante',
+      )
       return
     }
 
