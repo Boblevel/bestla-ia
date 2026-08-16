@@ -1,0 +1,15 @@
+services:
+  bot:
+    build: .
+    container_name: bestla-ia-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - bot-data:/app/data
+      - ./custom-plugins:/app/custom-plugins:ro
+
+volumes:
+  bot-data:
