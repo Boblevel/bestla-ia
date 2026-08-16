@@ -13,7 +13,7 @@ async function guard(ctx: CommandContext): Promise<MediaAiService | undefined> {
   }
   const service = new MediaAiService(ctx.config)
   if (!service.isConfigured()) {
-    await ctx.reply('La génération média IA n’est pas activée. Configure MEDIA_AI_ENABLED=true et MEDIA_AI_API_KEY dans .env, puis redémarre le bot.')
+    await ctx.reply('La génération média IA n’est pas encore prête. Active MEDIA_AI_ENABLED=true, ajoute ta clé Gemini pour la vidéo, et configure Cloudflare si tu veux générer les images gratuitement.')
     return undefined
   }
   return service
@@ -191,7 +191,7 @@ export const generativeMediaCommands: BotCommand[] = [
     async execute(ctx) {
       const state = new MediaAiService(ctx.config).status()
       await ctx.reply(
-        `Média IA : *${state.enabled ? 'activé' : 'désactivé'}*\nFournisseur : *${state.provider}*\nClé : *${state.configured ? 'configurée' : 'manquante'}*\nImage : ${state.imageModel}\nVidéo : ${state.videoModel}\nAccès public : *${ctx.config.mediaAi.publicAccess ? 'oui' : 'non'}*`,
+        `Média IA : *${state.enabled ? 'activé' : 'désactivé'}*\nMode : *${state.provider}*\nImage : ${state.imageProvider} • ${state.imageConfigured ? 'prête' : 'indisponible'} • ${state.imageAccounts} compte(s) de secours\nModèle image : ${state.imageModel}\nRetouche image : ${state.imageEditConfigured ? 'Gemini prête' : 'Gemini non configurée'} • ${state.imageEditModel}\nVidéo : ${state.videoConfigured ? 'Gemini prête' : 'Gemini non configurée'}${state.videoFallback ? ' + secours local 5 s prêt' : ''}\nModèle vidéo : ${state.videoModel}\nAccès public : *${ctx.config.mediaAi.publicAccess ? 'oui' : 'non'}*`,
       )
     },
   },
