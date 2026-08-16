@@ -49,6 +49,34 @@ interface LinkingArtifact {
   createdAt: string
 }
 
+interface SessionRuntimeStatusArtifact {
+  session: string
+  linked: boolean
+  connected: boolean
+  jid: string | null
+  updatedAt: string
+}
+
+async function saveSessionRuntimeStatus(
+  dataDir: string,
+  session: string,
+  linked: boolean,
+  connected: boolean,
+  jid: string | null,
+): Promise<void> {
+  const directory = path.join(dataDir, 'session-status')
+  await mkdir(directory, { recursive: true, mode: 0o700 })
+  const status: SessionRuntimeStatusArtifact = {
+    session,
+    linked,
+    connected,
+    jid,
+    updatedAt: new Date().toISOString(),
+  }
+  await writeFile(path.join(directory, `${session}.json`), `${JSON.stringify(status)}
+`, { mode: 0o600 })
+}
+
 async function saveLinkingArtifact(
   dataDir: string,
   session: string,
@@ -83,6 +111,7 @@ export class SessionManager {
   async start(): Promise<void> {
     await mkdir(path.join(this.config.dataDir, 'sessions'), { recursive: true })
     await mkdir(path.join(this.config.dataDir, 'linking'), { recursive: true, mode: 0o700 })
+    await mkdir(path.join(this.config.dataDir, 'session-status'), { recursive: true, mode: 0o700 })
     await Promise.all(this.config.sessionNames.map((name) => this.connect(name)))
   }
 
@@ -180,6 +209,13 @@ export class SessionManager {
         session.connected = true
         session.pairingRequested = false
         await clearLinkingArtifact(this.config.dataDir, name)
+        await saveSessionRuntimeStatus(
+          this.config.dataDir,
+          name,
+          true,
+          true,
+          sock.user?.id ? normalizeUserJid(sock.user.id) : null,
+        )
         logger.info({ session: name, jid: sock.user?.id }, 'Session WhatsApp connectée')
       }
 
@@ -187,6 +223,16 @@ export class SessionManager {
         session.connected = false
         const statusCode = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut && !this.stopping
+        const linked = statusCode === DisconnectReason.loggedOut
+          ? false
+          : Boolean(state.creds.registered || sock.user?.id)
+        await saveSessionRuntimeStatus(
+          this.config.dataDir,
+          name,
+          linked,
+          false,
+          sock.user?.id ? normalizeUserJid(sock.user.id) : null,
+        )
         logger.warn({ session: name, statusCode, shouldReconnect }, 'Session WhatsApp déconnectée')
         if (shouldReconnect) {
           session.reconnectTimer = setTimeout(() => void this.connect(name), 5_000)
