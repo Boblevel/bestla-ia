@@ -48,7 +48,7 @@ function runFfmpeg(args: string[], timeoutMs = 150_000): Promise<void> {
     process.once('error', (error) => {
       clearTimeout(timeout)
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        reject(new MediaProcessError('FFmpeg est absent du VPS. Lance le panneau « bestla », puis l’option diagnostic, ou réinstalle Bestla iA.'))
+        reject(new MediaProcessError('FFmpeg est absent du VPS. Lance le panneau « bestla », puis l’option diagnostic, ou réinstalle le service.'))
       } else {
         reject(new MediaProcessError('Impossible de lancer le traitement média.'))
       }

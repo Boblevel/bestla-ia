@@ -54,10 +54,10 @@ function contentStream(lines: string[]): Buffer {
 /** Crée un PDF A4 simple, adapté aux notes, devis courts et textes d’assistance. */
 export function createTextPdf(title: string, body: string): Buffer {
   const date = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date())
-  const lines = [`${title.trim().slice(0, 100) || 'Document Bestla iA'}`, '', ...wrap(body.trim().slice(0, 12_000), 88), '', `Créé par Bestla iA • ${date}`]
+  const lines = [`${title.trim().slice(0, 100) || 'Document'}`, '', ...wrap(body.trim().slice(0, 12_000), 88), '', `Créé le ${date}`]
   const pages: string[][] = []
   for (let index = 0; index < lines.length; index += 48) pages.push(lines.slice(index, index + 48))
-  if (pages.length === 0) pages.push(['Document Bestla iA'])
+  if (pages.length === 0) pages.push(['Document'])
 
   const pageNumbers = pages.map((_, index) => 4 + index * 2)
   const objects: Buffer[] = []
