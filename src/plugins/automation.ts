@@ -542,7 +542,7 @@ export const automationCommands: BotCommand[] = [
         const ai = new AiService(ctx.config).status()
         return void (await ctx.reply(
           `Assistant IA automatique : *${settings.enabled ? 'activé' : 'désactivé'}*
-Réponses : *messages privés entrants uniquement*
+Réponses : *messages privés entrants d’autres personnes uniquement*
 Fournisseur : *${ai.configured ? 'configuré' : 'non configuré'}* (${ai.provider} / ${ai.model})
 Protection : *messages privés entrants uniquement • 1 réponse toutes les 20 s • transfert humain automatique*
 Consigne : ${settings.instructions}`,
@@ -555,7 +555,8 @@ Consigne : ${settings.instructions}`,
         await ctx.db.mutateAutomation((automation) => { automation.customerAi.enabled = true })
         return void (await ctx.reply(
           `🤖 Assistant IA automatique *activé*.
-Il répond aux personnes qui t’écrivent en privé, sans démarchage, sans envoi massif et sans intervenir dans les groupes.`,
+Il répond aux personnes qui t’écrivent en privé, sans démarchage, sans envoi massif et sans intervenir dans les groupes.
+Pour tester : fais écrire le bot par un autre numéro en message privé. Tes propres messages et les groupes sont ignorés volontairement.`,
         ))
       }
       if (action === 'desactiver') {
