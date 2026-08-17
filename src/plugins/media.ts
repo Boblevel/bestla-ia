@@ -15,7 +15,7 @@ async function requireImage(ctx: CommandContext) {
     await ctx.reply('Envoie une image avec la commande en légende ou réponds à une image.')
     return undefined
   }
-  const media = await downloadMedia(source, ctx.config.maxMediaBytes)
+  const media = await downloadMedia(source, ctx.config.maxMediaBytes, ctx.sock)
   if (media.type !== 'image') {
     await ctx.reply('Le média sélectionné doit être une image.')
     return undefined
@@ -50,7 +50,7 @@ export const mediaCommands: BotCommand[] = [
       if (!source) {
         return void (await ctx.reply('Envoie une image avec la légende .autocollant ou réponds à une image.'))
       }
-      const media = await downloadMedia(source, ctx.config.maxMediaBytes)
+      const media = await downloadMedia(source, ctx.config.maxMediaBytes, ctx.sock)
       if (media.type === 'sticker') {
         await ctx.send({ sticker: media.buffer })
         return
@@ -74,7 +74,7 @@ export const mediaCommands: BotCommand[] = [
     async execute(ctx) {
       const source = sourceMessage(ctx)
       if (!source) return void (await ctx.reply('Réponds à un autocollant avec .image.'))
-      const media = await downloadMedia(source, ctx.config.maxMediaBytes)
+      const media = await downloadMedia(source, ctx.config.maxMediaBytes, ctx.sock)
       if (media.type !== 'sticker') return void (await ctx.reply('Le média sélectionné n’est pas un autocollant.'))
       const image = await sharp(media.buffer, { animated: false }).png().toBuffer()
       await ctx.send({ image, caption: 'Autocollant converti.' })

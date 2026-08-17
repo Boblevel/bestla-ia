@@ -29,7 +29,7 @@ async function selectedMedia(ctx: CommandContext, accepted: DownloadedMedia['typ
     await ctx.reply(`Réponds à ${accepted.includes('video') ? 'une vidéo' : 'un média compatible'} avec cette commande, ou envoie-le avec la commande en légende.`)
     return undefined
   }
-  return downloadMedia(source, ctx.config.maxMediaBytes)
+  return downloadMedia(source, ctx.config.maxMediaBytes, ctx.sock)
 }
 
 async function sendAudio(ctx: CommandContext, audio: Buffer, caption: string): Promise<void> {

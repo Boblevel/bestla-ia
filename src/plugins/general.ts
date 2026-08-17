@@ -18,6 +18,8 @@ const categoryIcons: Record<string, string> = {
   Média: '🎨',
   'Audio & Vidéo': '🎬',
   'Documents & Création': '📄',
+  'Créateur de texte': '✍️',
+  Utilisateur: '👤',
   Automatisation: '⚙️',
   Budget: '💰',
   Entreprise: '💼',
@@ -46,6 +48,10 @@ const categoryAliases = new Map<string, string>([
   ['documentscreation', 'Documents & Création'],
   ['document', 'Documents & Création'],
   ['creation', 'Documents & Création'],
+  ['textmaker', 'Créateur de texte'],
+  ['createurdetexte', 'Créateur de texte'],
+  ['utilisateur', 'Utilisateur'],
+  ['user', 'Utilisateur'],
   ['automatisation', 'Automatisation'],
   ['budget', 'Budget'],
   ['entreprise', 'Entreprise'],
@@ -67,6 +73,8 @@ const categoryOrder = [
   'Budget',
   'Général',
   'Documents & Création',
+  'Créateur de texte',
+  'Utilisateur',
   'WhatsApp',
 ] as const
 

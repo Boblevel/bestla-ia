@@ -14,7 +14,7 @@ async function privateTarget(ctx: Parameters<BotCommand['execute']>[0]): Promise
     await ctx.reply('Pour éviter une action accidentelle dans un groupe, utilise cette commande dans une conversation privée.')
     return undefined
   }
-  const target = ctx.targetUser()
+  const target = ctx.targetUser() ?? ((ctx.chatId.endsWith('@s.whatsapp.net') || ctx.chatId.endsWith('@lid')) ? ctx.chatId : undefined)
   if (!target) {
     await ctx.reply('Réponds au message du contact ou indique son numéro international sans le signe +.')
     return undefined
@@ -195,7 +195,7 @@ ${ctx.prefix}commande liste`))
   },
   {
     name: 'bloquercontact',
-    aliases: ['bloquer'],
+    aliases: ['bloquer', 'block'],
     description: 'Bloque un contact WhatsApp depuis une conversation privée.',
     usage: '@personne ou numéro',
     category: 'Propriétaire',
@@ -209,7 +209,7 @@ ${ctx.prefix}commande liste`))
   },
   {
     name: 'debloquercontact',
-    aliases: ['debloquer'],
+    aliases: ['debloquer', 'unblock'],
     description: 'Débloque un contact WhatsApp depuis une conversation privée.',
     usage: '@personne ou numéro',
     category: 'Propriétaire',

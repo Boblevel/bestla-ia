@@ -27,7 +27,7 @@ async function sourceImage(ctx: CommandContext): Promise<{ buffer: Buffer; mimet
     await ctx.reply('Envoie une image avec la commande en légende, ou réponds à une image avec cette commande.')
     return undefined
   }
-  const media = await downloadMedia(source, ctx.config.maxMediaBytes)
+  const media = await downloadMedia(source, ctx.config.maxMediaBytes, ctx.sock)
   if (media.type !== 'image') {
     await ctx.reply('Le média doit être une image.')
     return undefined
@@ -43,7 +43,7 @@ async function sourceVideo(ctx: CommandContext): Promise<{ buffer: Buffer; mimet
     await ctx.reply('Envoie une vidéo avec la commande en légende, ou réponds à une vidéo avec cette commande.')
     return undefined
   }
-  const media = await downloadMedia(source, ctx.config.maxMediaBytes)
+  const media = await downloadMedia(source, ctx.config.maxMediaBytes, ctx.sock)
   if (media.type !== 'video') {
     await ctx.reply('Le média doit être une vidéo.')
     return undefined

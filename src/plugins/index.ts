@@ -15,6 +15,8 @@ import { ownerCommands } from './owner.js'
 import { socialMediaCommands } from './social-media.js'
 import { whatsappCommands } from './whatsapp.js'
 import { ttsCommands } from './tts.js'
+import { textMakerCommands } from './textmaker.js'
+import { userCommands } from './user.js'
 
 export function registerBuiltInCommands(registry: CommandRegistry): void {
   ;[
@@ -32,6 +34,8 @@ export function registerBuiltInCommands(registry: CommandRegistry): void {
     ...businessCommands,
     ...commerceCommands,
     ...gameCommands,
+    ...textMakerCommands,
+    ...userCommands,
     ...whatsappCommands,
     ...ownerCommands,
   ].forEach((command) => registry.register(command))
