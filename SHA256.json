@@ -28,7 +28,7 @@
   "src/config.ts": "0178686c2ef29387a9eaeb7eadcc51941e16fef39341efb5d731b31998563f8f",
   "src/core/ai.ts": "ee158e6f63fe481315e92cdceef464a5991c8dbc0d77ec7c7cf75fd291c41832",
   "src/core/api.ts": "77bed00d203ef3c5105a3e5d3235b30b3a458f9d02e28fa7249b3abab52f1f21",
-  "src/core/automation.ts": "1f6d2004d4b9e8d0ba24a6b0f740b5e1c0785d0f6f847781c036a07caad342ed",
+  "src/core/automation.ts": "fb08d36ac2e38da1fc6ad24cf1f1ba3a935a679007934cc3f32a6539a39690d1",
   "src/core/cloudflare-pool.ts": "32e74bfb32442f3f0ca5c1474a658dc6f4edbd2634bf21eb37917d82c1664df8",
   "src/core/database.ts": "bb48cf5757303499c526dfec463299bdd7376276c20d65d135b753321cc6a2f3",
   "src/core/logger.ts": "44907170250459d03f3502de5f1e927dfd95c8bc4a0ef8ccd9b3c038a28ce305",
