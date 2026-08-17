@@ -25,6 +25,7 @@ const schema = z.object({
   REJECT_CALLS: booleanFromEnv.default(false),
   WARN_LIMIT: z.coerce.number().int().min(1).max(20).default(3),
   MAX_MEDIA_MB: z.coerce.number().int().min(1).max(100).default(20),
+  MAX_APK_MB: z.coerce.number().int().min(1).max(200).default(100),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   TIMEZONE: z.string().default('Africa/Ouagadougou'),
   API_ENABLED: booleanFromEnv.default(false),
@@ -140,6 +141,7 @@ export interface AppConfig {
   rejectCalls: boolean
   warnLimit: number
   maxMediaBytes: number
+  maxApkBytes: number
   logLevel: string
   timezone: string
   api: { enabled: boolean; host: string; port: number; key: string; rateLimitPerMinute: number }
@@ -189,6 +191,7 @@ export const config: AppConfig = {
   rejectCalls: env.REJECT_CALLS,
   warnLimit: env.WARN_LIMIT,
   maxMediaBytes: env.MAX_MEDIA_MB * 1024 * 1024,
+  maxApkBytes: env.MAX_APK_MB * 1024 * 1024,
   logLevel: env.LOG_LEVEL,
   timezone: env.TIMEZONE,
   api: { enabled: env.API_ENABLED, host: env.API_HOST, port: env.API_PORT, key: env.API_KEY, rateLimitPerMinute: env.API_RATE_LIMIT_PER_MINUTE },
