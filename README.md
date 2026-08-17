@@ -84,7 +84,7 @@ Bestla installe et entretient automatiquement `yt-dlp` pendant `npm ci`/mise à 
 En discussion privée, tu peux aussi **coller uniquement le lien**. Bestla demande alors `360p`, `480p`, `720p`, `1080p`, `best` ou `audio 128k`, puis lance le téléchargement après ta réponse. Le choix reste disponible 10 minutes.
 
 - `.qualites <lien>` : inspecte les résolutions disponibles.
-- `.telecharger <lien> 360p|480p|720p|1080p|best` : télécharge directement une vidéo publique.
+- `.telecharger <lien> 360p|480p|720p|1080p|best` : télécharge directement une vidéo publique. Le moteur yt-dlp et le fournisseur PO Token YouTube sont préparés automatiquement pendant l'installation/mise à jour ; aucune clé ou compte YouTube n'est demandé pour les contenus publics.
 - `.telechargeraudio <lien> 64k|96k|128k|160k|192k|256k|320k` : extrait directement l'audio en MP3.
 
 Domaines publics autorisés : YouTube, Instagram, Facebook, TikTok, X/Twitter, Threads, Vimeo, Dailymotion, SoundCloud, Twitch, Reddit et Pinterest. Bestla ne tente pas de contourner les contenus privés, les connexions obligatoires ou les protections DRM. La qualité peut être abaissée automatiquement si le fichier dépasse la limite média WhatsApp configurée.

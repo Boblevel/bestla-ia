@@ -1,3 +1,11 @@
+## 2026-08-17 — V17.6 — Téléchargement YouTube public renforcé
+
+- Corrige le faux message « contenu privé » rencontré sur certaines vidéos YouTube publiques quand YouTube déclenche sa vérification anti-bot.
+- Installe automatiquement le provider PO Token `bgutil-ytdlp-pot-provider` 1.3.1 recommandé dans l'écosystème yt-dlp, sans configuration utilisateur.
+- Le provider est préparé au `postinstall` et réparé automatiquement au premier téléchargement si nécessaire.
+- Aucun cookie, compte YouTube ou clé supplémentaire n'est demandé pour les contenus publics.
+- Les contenus réellement privés, membres ou nécessitant une authentification restent refusés.
+
 # Journal des changements
 
 ### V17 - Assistantauto ~3 s, duo multi-numéros, téléchargements sociaux et vitesse média - 17 août 2026
