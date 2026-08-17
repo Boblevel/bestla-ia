@@ -1,3 +1,17 @@
+## 2026-08-17 — V17.9 — français intégral du menu, audio vue unique, TextMaker V2 et APK
+
+- Renommage des commandes V17.8 encore affichées en anglais : `.changerphotoprofil`, `.identifiantcontact`, `.identifiantgroupe`, `.quittergroupe`, `.appel`, `.legende`, `.effacer`, `.supprimer`, `.document`, `.enligne`, `.sondagewhatsapp`, `.lire`, `.programmerstatut`, `.publierstatut`, `.statuts` et `.recuperermedia`.
+- Francisation complémentaire du menu : `.mentioncachee`, `.produitsnumeriques`, `.acheternumerique`, `.produitnumerique` et `.livrernumerique`; les anciens noms anglais/anglicisés correspondants ne sont plus des commandes officielles.
+- Retrait des alias anglais visibles les plus courants (`download`, `ask`, `replypro`, `tictactoe`, `videoedit`, `commandeswitch`, `tts`) afin que les commandes publiques restent en français.
+- `.recuperermedia` accepte maintenant les photos, vidéos **et audios** vue unique/expirés lorsque WhatsApp ou un appareil lié peut encore fournir les octets.
+- Refonte TextMaker : noms officiels français et rendus 1280×1280 réellement différenciés (3D, ange, vengeur, bulle, rose, chat, parasite, paillettes, graffiti, pirate, lumière, super-héros, néon, science-fiction, enseigne, tatouage, aquarelle).
+- Ajout de `.telechargerapk` : liens Google Play, APKPure, F-Droid, liens `.apk` directs et identifiants de paquet Android. Pour un lien Play Store sans compte Google, Bestla utilise APKPure comme source publique à partir de l’identifiant de paquet.
+- En privé, un lien APK reconnu peut maintenant être simplement collé sans commande : Bestla le détecte et lance le téléchargement automatiquement.
+- Ajout du moteur local `apkeep` 1.0.0, installé/réparé automatiquement par `scripts/ensure-apk.sh` pendant `npm ci` et au premier usage.
+- Ajout de `MAX_APK_MB=100`, indépendant de la limite média habituelle. Le SHA256 de chaque APK téléchargé est affiché avant utilisation.
+- Ajout de `.copiertexte` et `.infosmessage` pour les opérations WhatsApp courantes.
+- Aucun contournement des applications payantes, DRM, privées ou nécessitant une authentification.
+
 ## 2026-08-17 — V17.8 — TextMaker, commandes utilisateur/WhatsApp et récupération média renforcée
 
 - Ajout d'un atelier TextMaker 100 % local, sans clé API : `.3d`, `.angel`, `.avenger`, `.blub`, `.bpink`, `.cat`, `.glitch`, `.glitter`, `.graffiti`, `.hacker`, `.light`, `.marvel`, `.neon`, `.sci`, `.sign`, `.tattoo` et `.watercolor`.

@@ -68,6 +68,7 @@ sync_code() {
     --exclude='.env' \
     --exclude='data/' \
     --exclude='node_modules/' \
+    --exclude='.bin/' \
     --exclude='output/' \
     --exclude='tmp/' \
     --exclude='releases/' \

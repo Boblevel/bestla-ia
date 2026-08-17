@@ -13,55 +13,71 @@ bestla
 ```
 
 
-## V17.8 — TextMaker et commandes WhatsApp supplémentaires
+## V17.9 — commandes françaises, récupération audio, TextMaker amélioré et APK
 
-### Créateur de texte
+### Commandes officielles en français
 
-Les effets sont générés localement avec `sharp`, sans API ni clé supplémentaire :
+Les noms affichés dans `.menu` sont désormais en français. Les commandes ajoutées en V17.8 qui utilisaient des noms anglais ont été renommées :
+
+- `.changerphotoprofil` : remplace la photo de profil du numéro Bestla avec l’image citée.
+- `.identifiantcontact` / `.identifiantgroupe` : affichent les identifiants WhatsApp utiles.
+- `.quittergroupe` : fait quitter le groupe au numéro Bestla.
+- `.appel`, `.legende`, `.effacer`, `.supprimer`, `.document`, `.enligne`, `.sondagewhatsapp`, `.lire`.
+- `.publierstatut`, `.programmerstatut`, `.statuts`.
+- `.recuperermedia` : remplace l’ancienne commande courte de récupération et accepte maintenant photo, vidéo et audio.
+- `.produitsnumeriques`, `.acheternumerique`, `.produitnumerique`, `.livrernumerique` : remplacent les anciens noms contenant « digital ».
+- `.mentioncachee` : remplace l’ancien nom `.taghid` dans les groupes et dans la règle Duo par défaut.
+
+### Créateur de texte V2
+
+Les effets TextMaker ont été retravaillés avec des compositions différentes selon le style : extrusion 3D, ailes/halo, bulles, parasite RVB, paillettes, graffiti, terminal pirate, néons, interface science-fiction, enseigne, ornements tatouage et taches aquarelle. Les images sont générées localement en 1280×1280 avec `sharp`, sans clé API.
 
 - `.3d <texte>`
-- `.angel <texte>`
-- `.avenger <texte>`
-- `.blub <texte>`
-- `.bpink <texte>`
-- `.cat <texte>`
-- `.glitch <texte>`
-- `.glitter <texte>`
+- `.ange <texte>`
+- `.vengeur <texte>`
+- `.bulle <texte>`
+- `.rose <texte>`
+- `.chat <texte>`
+- `.parasite <texte>`
+- `.paillettes <texte>`
 - `.graffiti <texte>`
-- `.hacker <texte>`
-- `.light <texte>`
-- `.marvel <texte>`
+- `.pirate <texte>`
+- `.lumiere <texte>`
+- `.superheros <texte>`
 - `.neon <texte>`
-- `.sci <texte>`
-- `.sign <texte>`
-- `.tattoo <texte>`
-- `.watercolor <texte>`
+- `.sciencefiction <texte>`
+- `.enseigne <texte>`
+- `.tatouage <texte>`
+- `.aquarelle <texte>`
 
-### Utilisateur
+### Vue unique et médias expirés
 
-- `.block` / `.unblock` : aliases directs des commandes de blocage propriétaire.
-- `.pp` : envoie la photo de profil visible du contact ciblé.
-- `.fullpp` : en réponse à une image, remplace la photo de profil du numéro Bestla.
-- `.jid` : affiche le JID du contact ciblé.
-- `.gjid` : affiche le JID du groupe.
-- `.left` : fait quitter le groupe au numéro Bestla.
+Réponds au média avec :
 
-### WhatsApp
+- `.recuperermedia` : tente de récupérer une **photo, vidéo ou audio** vue unique, ainsi qu’un média dont l’URL WhatsApp a expiré lorsque WhatsApp ou un appareil lié peut encore le fournir.
 
-- `.caption <texte>` : réenvoie une image/vidéo avec une nouvelle légende.
-- `.delete`, `.dlt`, `.clear` : suppriment le message cité lorsque WhatsApp l'autorise.
-- `.contacts` : affiche les membres du groupe ou le JID du contact courant.
-- `.doc` : réenvoie un média comme document.
-- `.online` : force la présence en ligne.
-- `.poll Question | Oui | Non` : crée un sondage WhatsApp natif.
-- `.read` : marque le message comme lu.
-- `.status` : affiche le panneau des fonctions de statuts.
-- `.setstatus <texte>` ou en réponse à une image/vidéo : publie un statut destiné aux personnes de la discussion actuelle.
-- `.scstatus 10min | texte` : programme réellement un statut texte ; en réponse à une image/vidéo, `.scstatus 2h` programme aussi le média. `.scstatus liste` affiche les statuts actifs et `.scstatus supprimer <id>` les annule. Les médias planifiés sont stockés uniquement parce que la programmation est demandée explicitement, puis supprimés après l’envoi unique.
-- `.vv` : tente de récupérer une photo/vidéo vue unique ou un média à URL expirée. Bestla demande une réémission à WhatsApp via Baileys si nécessaire et force aussi une tentative `updateMediaMessage` lorsque le réessai automatique ne part pas ; la récupération dépend donc encore d'un appareil lié qui possède le média.
-- `.call` : affiche l'état du refus automatique des appels entrants. Baileys ne fournit pas un appel sortant fiable dans ce projet.
+La récupération reste manuelle : Bestla ne crée pas d’archive cachée des médias vue unique.
 
-La récupération de médias expirés s'appuie sur le mécanisme de réémission Baileys et n'ajoute aucune archive cachée de médias vue unique sur le VPS. Seule une commande explicite de programmation `.scstatus` peut enregistrer temporairement le média concerné dans `data/scheduled-status/` jusqu'à sa publication.
+### Téléchargement APK
+
+En conversation privée, **tu peux aussi simplement coller le lien** : si Bestla reconnaît Google Play, APKPure, F-Droid ou une URL directe `.apk`, le téléchargement démarre automatiquement. La commande explicite reste disponible.
+
+Le moteur APK est installé/réparé automatiquement pendant `npm ci` et au premier usage si nécessaire. La commande accepte :
+
+- un lien Google Play : `.telechargerapk https://play.google.com/store/apps/details?id=com.exemple.app` ;
+- un lien APKPure ;
+- un lien F-Droid ;
+- un lien direct se terminant par `.apk` ;
+- un identifiant Android : `.telechargerapk com.exemple.app`.
+
+Pour un lien Play Store sans identifiants Google configurés, Bestla extrait l’identifiant du paquet puis utilise la source publique APKPure. F-Droid est téléchargé depuis F-Droid. Les liens APK directs sont récupérés avec les protections réseau Bestla. Le fichier est envoyé comme document WhatsApp avec sa taille et son empreinte SHA256. La limite dédiée est `MAX_APK_MB=100` par défaut.
+
+Les applications payantes, DRM, privées ou nécessitant une authentification ne sont pas contournées.
+
+### Autres commandes pratiques ajoutées
+
+- `.copiertexte` : en réponse à un message, renvoie uniquement son texte ou sa légende.
+- `.infosmessage` : affiche le type, l’expéditeur, l’identifiant, la date et le type de média du message cité.
 
 ## Médias IA
 
@@ -90,7 +106,7 @@ Le style est celui d'un jeune adulte africain francophone de 23 ans, poli, posé
 
 Le moteur vocal est installé automatiquement pendant `npm ci`, donc aussi lors d'une installation neuve ou d'une mise à jour depuis le panneau Bestla. Aucune clé TTS n'est demandée. Le service utilise `edge-tts` et convertit le résultat en OGG/Opus pour l'envoyer comme vraie note vocale WhatsApp.
 
-- `.vocal <texte>` (alias `.tts`, `.textevoix`, `.vocale`) : transforme le texte en note vocale.
+- `.vocal <texte>` (alias français `.textevoix`, `.vocale`) : transforme le texte en note vocale.
 - `.voix` : affiche les réglages de la personne qui lance la commande.
 - `.voix langue fr` : français. Exemples supplémentaires : `en-ng`, `en`, `sw`, `ar`, `es`, `pt`, `de`, `it`, `tr`, `hi`, `af`.
 - `.voix homme` / `.voix femme` : change le genre vocal.
@@ -121,10 +137,10 @@ Quand plusieurs numéros Bestla sont connectés au même projet, le mode duo év
 
 - `.duo activer` / `.duo desactiver` / `.duo statut`
 - `.duo liste` : affiche les règles.
-- `.duo ajouter taghid | hide` : ajoute une réponse exacte entre deux sessions Bestla.
+- `.duo ajouter mentioncachee | cache` : ajoute une réponse exacte entre deux sessions Bestla.
 - `.duo retirer <id>` : supprime une règle.
-- Une règle `taghid -> hide` est déjà fournie par défaut ; elle devient active avec `.duo activer`.
-- `.taghid [message]` : mention discrètement tous les membres du groupe sans afficher la liste complète des numéros. Commande réservée aux administrateurs du groupe.
+- Une règle `mentioncachee -> cache` est déjà fournie par défaut ; elle devient active avec `.duo activer`.
+- `.mentioncachee [message]` : mention discrètement tous les membres du groupe sans afficher la liste complète des numéros. Commande réservée aux administrateurs du groupe.
 
 Les messages provenant d'une autre session Bestla sont stoppés avant le routeur normal : ils ne lancent ni Assistantauto ni la même commande une deuxième fois.
 
