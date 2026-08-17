@@ -12,8 +12,12 @@ function extractUrlAndOption(ctx: CommandContext): { url?: string; option?: stri
   const tokens = ctx.args.map((item) => item.trim()).filter(Boolean)
   const urlIndex = tokens.findIndex((item) => /^https?:\/\//i.test(item))
   if (urlIndex === -1) return {}
-  const [url] = tokens.splice(urlIndex, 1)
-  return { url, option: tokens[0] }
+
+  const url = tokens.splice(urlIndex, 1)[0]
+  if (!url) return {}
+
+  const option = tokens[0]
+  return option ? { url, option } : { url }
 }
 
 function durationLabel(seconds: number | null): string {
