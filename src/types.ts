@@ -17,6 +17,8 @@ export type CommandCategory =
   | 'Média'
   | 'Audio & Vidéo'
   | 'Documents & Création'
+  | 'Créateur de texte'
+  | 'Utilisateur'
   | 'Automatisation'
   | 'Budget'
   | 'Entreprise'
