@@ -61,6 +61,34 @@ function runFfmpeg(args: string[], timeoutMs = 150_000): Promise<void> {
   })
 }
 
+function runFfprobe(args: string[], timeoutMs = 30_000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const process = spawn('ffprobe', ['-v', 'error', ...args], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+    let stdout = ''
+    let stderr = ''
+    const timeout = setTimeout(() => {
+      process.kill('SIGKILL')
+      reject(new MediaProcessError('L’analyse du média a dépassé le délai autorisé.'))
+    }, timeoutMs)
+    timeout.unref()
+    process.stdout.on('data', (chunk: Buffer) => { if (stdout.length < 20_000) stdout += chunk.toString('utf8') })
+    process.stderr.on('data', (chunk: Buffer) => { if (stderr.length < 4_000) stderr += chunk.toString('utf8') })
+    process.once('error', (error) => {
+      clearTimeout(timeout)
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') reject(new MediaProcessError('FFprobe est absent du VPS. Réinstalle FFmpeg depuis le panel Bestla.'))
+      else reject(new MediaProcessError('Impossible d’analyser ce média.'))
+    })
+    process.once('close', (code) => {
+      clearTimeout(timeout)
+      if (code === 0) resolve(stdout.trim())
+      else reject(new MediaProcessError(stderr.trim().slice(0, 300) || 'FFprobe n’a pas pu analyser ce média.'))
+    })
+  })
+}
+
 async function withWorkspace<T>(input: Buffer, extension: string, task: (inputPath: string, directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(path.join(tmpdir(), 'bestla-media-'))
   try {
@@ -77,6 +105,33 @@ function validateTime(value: number, label: string): string {
   return String(Math.round(value * 100) / 100)
 }
 
+function validateSpeed(value: number): number {
+  if (!Number.isFinite(value) || value < 0.5 || value > 3) {
+    throw new MediaProcessError('La vitesse doit être comprise entre 0.5x et 3x.')
+  }
+  return Math.round(value * 100) / 100
+}
+
+export function atempoFilter(value: number): string {
+  let speed = validateSpeed(value)
+  const parts: number[] = []
+  while (speed > 2) {
+    parts.push(2)
+    speed /= 2
+  }
+  while (speed < 0.5) {
+    parts.push(0.5)
+    speed /= 0.5
+  }
+  parts.push(speed)
+  return parts.map((part) => `atempo=${part.toFixed(4).replace(/0+$/, '').replace(/\.$/, '')}`).join(',')
+}
+
+async function inputHasAudio(inputPath: string): Promise<boolean> {
+  const result = await runFfprobe(['-select_streams', 'a:0', '-show_entries', 'stream=index', '-of', 'csv=p=0', inputPath])
+  return Boolean(result.trim())
+}
+
 export async function convertAudioToMp3(input: Buffer, mimetype: string): Promise<Buffer> {
   return withWorkspace(input, extensionFromMime(mimetype, 'ogg'), async (inputPath, directory) => {
     const output = path.join(directory, 'sortie.mp3')
@@ -90,6 +145,15 @@ export async function applyAudioEffect(input: Buffer, mimetype: string, effect: 
   return withWorkspace(input, extensionFromMime(mimetype, 'ogg'), async (inputPath, directory) => {
     const output = path.join(directory, 'sortie.mp3')
     await runFfmpeg(['-i', inputPath, '-vn', '-af', filter, '-c:a', 'libmp3lame', '-b:a', '128k', output])
+    return readFile(output)
+  })
+}
+
+export async function changeAudioSpeed(input: Buffer, mimetype: string, speedInput: number): Promise<Buffer> {
+  const speed = validateSpeed(speedInput)
+  return withWorkspace(input, extensionFromMime(mimetype, 'ogg'), async (inputPath, directory) => {
+    const output = path.join(directory, 'vitesse.mp3')
+    await runFfmpeg(['-i', inputPath, '-vn', '-af', atempoFilter(speed), '-c:a', 'libmp3lame', '-b:a', '128k', output])
     return readFile(output)
   })
 }
@@ -145,6 +209,49 @@ export async function compressVideo(input: Buffer, mimetype: string): Promise<Bu
       '+faststart',
       output,
     ])
+    return readFile(output)
+  })
+}
+
+export async function changeVideoSpeed(input: Buffer, mimetype: string, speedInput: number): Promise<Buffer> {
+  const speed = validateSpeed(speedInput)
+  return withWorkspace(input, extensionFromMime(mimetype, 'mp4'), async (inputPath, directory) => {
+    const output = path.join(directory, 'vitesse.mp4')
+    const hasAudio = await inputHasAudio(inputPath)
+    const args = [
+      '-i', inputPath,
+      '-vf', `setpts=PTS/${speed}`,
+      ...(hasAudio ? ['-af', atempoFilter(speed)] : ['-an']),
+      '-c:v', 'libx264',
+      '-preset', 'veryfast',
+      '-crf', '23',
+      ...(hasAudio ? ['-c:a', 'aac', '-b:a', '128k'] : []),
+      '-movflags', '+faststart',
+      output,
+    ]
+    await runFfmpeg(args, 240_000)
+    return readFile(output)
+  })
+}
+
+export async function muteVideo(input: Buffer, mimetype: string): Promise<Buffer> {
+  return withWorkspace(input, extensionFromMime(mimetype, 'mp4'), async (inputPath, directory) => {
+    const output = path.join(directory, 'muet.mp4')
+    // Copie vidéo sans réencodage lorsque le conteneur est déjà compatible.
+    try {
+      await runFfmpeg(['-i', inputPath, '-map', '0:v:0', '-an', '-c:v', 'copy', '-movflags', '+faststart', output])
+    } catch {
+      await runFfmpeg(['-i', inputPath, '-map', '0:v:0', '-an', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-movflags', '+faststart', output])
+    }
+    return readFile(output)
+  })
+}
+
+export async function captureVideoFrame(input: Buffer, mimetype: string, secondInput: number): Promise<Buffer> {
+  const second = validateTime(secondInput, 'Le temps de capture')
+  return withWorkspace(input, extensionFromMime(mimetype, 'mp4'), async (inputPath, directory) => {
+    const output = path.join(directory, 'capture.jpg')
+    await runFfmpeg(['-ss', second, '-i', inputPath, '-frames:v', '1', '-q:v', '2', output], 90_000)
     return readFile(output)
   })
 }
