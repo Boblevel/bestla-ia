@@ -30,7 +30,7 @@ test('bloque les schémas et adresses locales avant yt-dlp', () => {
 })
 
 test('construit une sélection yt-dlp bornée à la qualité demandée', () => {
-  assert.match(videoFormatSelector(720), /height<=720/)
+  assert.match(videoFormatSelector(720), /height<=\?720/)
   assert.equal(videoFormatSelector('best'), 'bv*+ba/b')
 })
 
