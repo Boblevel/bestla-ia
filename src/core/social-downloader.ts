@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import { access, mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
@@ -151,6 +152,22 @@ export function videoFormatSelector(quality: VideoQuality): string {
   return `bv*[height<=?${quality}]+ba/b[height<=?${quality}]`
 }
 
+export function youtubePotProviderArgs(home = homedir()): string[] {
+  const root = process.env.BESTLA_POT_PROVIDER_HOME?.trim() || path.join(home, '.bestla', 'bgutil-ytdlp-pot-provider')
+  const serverHome = path.join(root, 'server')
+  const generator = path.join(serverHome, 'build', 'generate_once.js')
+  const xdg = process.env.XDG_CONFIG_HOME?.trim() || path.join(home, '.config')
+  const pluginNamespace = path.join(xdg, 'yt-dlp', 'plugins', 'bgutil-ytdlp-pot-provider', 'yt_dlp_plugins')
+
+  if (!existsSync(generator) || !existsSync(pluginNamespace)) return []
+  return [
+    '--extractor-args',
+    `youtubepot-bgutilscript:server_home=${serverHome}`,
+    '--extractor-args',
+    'youtube:player-client=mweb',
+  ]
+}
+
 function baseArgs(): string[] {
   return [
     '--ignore-config',
@@ -159,6 +176,7 @@ function baseArgs(): string[] {
     '--no-progress',
     '--js-runtimes',
     'node',
+    ...youtubePotProviderArgs(),
   ]
 }
 
@@ -183,22 +201,30 @@ async function canExecute(candidate: string): Promise<boolean> {
   }
 }
 
-async function ensureYtDlp(): Promise<string> {
-  for (const candidate of executableCandidates()) {
-    if (await canExecute(candidate)) return candidate
-  }
+let downloaderPreparation: Promise<void> | undefined
 
+async function prepareDownloader(): Promise<void> {
   const repairScript = path.resolve(process.cwd(), 'scripts', 'ensure-downloader.sh')
+  if (!downloaderPreparation) {
+    downloaderPreparation = runExecutable('bash', [repairScript], process.cwd(), 360_000, 256_000).then(() => undefined)
+  }
+  await downloaderPreparation
+}
+
+async function ensureYtDlp(): Promise<string> {
+  // Le postinstall prépare déjà yt-dlp. Ce contrôle au premier usage répare aussi
+  // automatiquement le provider PO Token si un VPS a été migré ou nettoyé.
   try {
-    await runExecutable('bash', [repairScript], process.cwd(), 190_000, 128_000)
+    await prepareDownloader()
   } catch {
-    throw new SocialDownloadError('Le module de téléchargement n’a pas pu être installé automatiquement. Relance la mise à jour Bestla depuis le panel puis réessaie.')
+    // Si yt-dlp existe déjà, les plateformes ne nécessitant pas le provider
+    // YouTube restent utilisables. On ne bloque donc pas avant de le vérifier.
   }
 
   for (const candidate of executableCandidates()) {
     if (await canExecute(candidate)) return candidate
   }
-  throw new SocialDownloadError('yt-dlp reste indisponible après la réparation automatique.')
+  throw new SocialDownloadError('Le module de téléchargement n’a pas pu être installé automatiquement. Relance la mise à jour Bestla depuis le panel puis réessaie.')
 }
 
 function runExecutable(
@@ -245,8 +271,11 @@ function runExecutable(
       if (overflow) return reject(new SocialDownloadError('La réponse du site est anormalement volumineuse.'))
       if (code === 0) return resolve({ stdout, stderr })
       const detail = stderr.trim().split('\n').slice(-4).join(' ').replace(/\s+/g, ' ').slice(0, 500)
-      if (/sign in|login|required|private|cookies/i.test(detail)) {
-        return reject(new SocialDownloadError('Ce contenu demande une connexion ou n’est pas public. Bestla ne contourne pas les contenus privés ou protégés.'))
+      if (/confirm (?:you(?:'|’)re|you are) not a bot|po token|proof.of.origin|bot check/i.test(detail)) {
+        return reject(new SocialDownloadError('YouTube a déclenché sa protection anti-bot. Bestla a préparé automatiquement le fournisseur PO Token ; réessaie le même lien une fois.'))
+      }
+      if (/sign in|login required|private video|members.only|age.restricted|cookies required/i.test(detail)) {
+        return reject(new SocialDownloadError('Ce contenu demande réellement une connexion ou n’est pas public. Bestla ne contourne pas les contenus privés ou protégés.'))
       }
       if (/unsupported url/i.test(detail)) return reject(new SocialDownloadError('Ce lien n’est pas pris en charge par le moteur de téléchargement actuel.'))
       if (/requested format is not available/i.test(detail)) return reject(new SocialDownloadError('Cette qualité n’est pas disponible pour ce lien. Essaie une qualité plus basse ou best.'))
