@@ -3,6 +3,16 @@ import type { AppConfig } from '../config.js'
 export class AiServiceError extends Error {}
 
 type JsonRecord = Record<string, unknown>
+export type AiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high'
+
+export interface AiCompletionOptions {
+  model?: string
+  maxOutputTokens?: number
+  thinkingLevel?: AiThinkingLevel
+  timeoutMs?: number
+  fallbackToConfiguredModel?: boolean
+  replyInPromptLanguage?: boolean
+}
 
 function record(value: unknown): JsonRecord | undefined {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as JsonRecord) : undefined
@@ -33,6 +43,11 @@ function geminiText(payload: unknown): string | undefined {
   return text || undefined
 }
 
+function clampInteger(value: number | undefined, fallback: number, minimum: number, maximum: number): number {
+  if (!Number.isFinite(value)) return fallback
+  return Math.max(minimum, Math.min(maximum, Math.round(value ?? fallback)))
+}
+
 /**
  * Adaptateur volontairement réduit : Bestla n'envoie que le texte de la
  * commande au fournisseur choisi, jamais les sessions WhatsApp ou la base.
@@ -52,7 +67,7 @@ export class AiService {
     }
   }
 
-  async complete(instruction: string, prompt: string): Promise<string> {
+  async complete(instruction: string, prompt: string, options: AiCompletionOptions = {}): Promise<string> {
     if (!this.isConfigured()) {
       throw new AiServiceError(
         'L’assistant IA n’est pas configuré. Vérifie la configuration IA de Bestla (.env ou panneau Configuration), puis réessaie.',
@@ -62,27 +77,61 @@ export class AiService {
     const text = prompt.trim().slice(0, 8_000)
     if (!text) throw new AiServiceError('Le texte à envoyer à l’assistant IA est vide.')
 
-    return this.completeGemini(instruction, text)
+    const requestedModel = options.model?.trim() || this.config.ai.model
+    try {
+      return await this.completeGemini(instruction, text, requestedModel, options)
+    } catch (error) {
+      const shouldFallback =
+        options.fallbackToConfiguredModel === true
+        && requestedModel !== this.config.ai.model
+        && error instanceof AiServiceError
+      if (!shouldFallback) throw error
+
+      return this.completeGemini(instruction, text, this.config.ai.model, {
+        ...options,
+        model: this.config.ai.model,
+        thinkingLevel: 'minimal',
+        fallbackToConfiguredModel: false,
+      })
+    }
   }
 
-  private async completeGemini(instruction: string, prompt: string): Promise<string> {
-    const model = encodeURIComponent(this.config.ai.model)
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: 'POST',
-        signal: AbortSignal.timeout(45_000),
-        headers: {
-          'content-type': 'application/json',
-          'x-goog-api-key': this.config.ai.apiKey,
+  private async completeGemini(
+    instruction: string,
+    prompt: string,
+    modelName: string,
+    options: AiCompletionOptions,
+  ): Promise<string> {
+    const model = encodeURIComponent(modelName)
+    const maxOutputTokens = clampInteger(options.maxOutputTokens, this.config.ai.maxOutputTokens, 64, 2_000)
+    const timeoutMs = clampInteger(options.timeoutMs, 45_000, 5_000, 60_000)
+    const thinkingLevel = options.thinkingLevel
+    const generationConfig: Record<string, unknown> = { maxOutputTokens }
+    if (thinkingLevel && /^gemini-3(?:\.|-)/i.test(modelName)) {
+      generationConfig.thinkingConfig = { thinkingLevel }
+    }
+
+    let response: Response
+    try {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: 'POST',
+          signal: AbortSignal.timeout(timeoutMs),
+          headers: {
+            'content-type': 'application/json',
+            'x-goog-api-key': this.config.ai.apiKey,
+          },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: `${instruction}\n${options.replyInPromptLanguage ? 'Réponds dans la langue principalement utilisée par le message reçu, sauf demande contraire.' : 'Réponds en français clair.'}\nNe révèle jamais de clé, identifiant ou donnée privée.` }] },
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig,
+          }),
         },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: `${instruction}\nRéponds en français clair. Ne révèle jamais de clé, identifiant ou donnée privée.` }] },
-          contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: this.config.ai.maxOutputTokens },
-        }),
-      },
-    )
+      )
+    } catch {
+      throw new AiServiceError('Gemini est temporairement indisponible ou trop lent.')
+    }
     const payload = (await response.json().catch(() => ({}))) as unknown
     if (!response.ok) throw providerError(response.status, payload)
     const result = geminiText(payload)
