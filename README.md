@@ -12,6 +12,57 @@ Après l'installation :
 bestla
 ```
 
+
+## V17.8 — TextMaker et commandes WhatsApp supplémentaires
+
+### Créateur de texte
+
+Les effets sont générés localement avec `sharp`, sans API ni clé supplémentaire :
+
+- `.3d <texte>`
+- `.angel <texte>`
+- `.avenger <texte>`
+- `.blub <texte>`
+- `.bpink <texte>`
+- `.cat <texte>`
+- `.glitch <texte>`
+- `.glitter <texte>`
+- `.graffiti <texte>`
+- `.hacker <texte>`
+- `.light <texte>`
+- `.marvel <texte>`
+- `.neon <texte>`
+- `.sci <texte>`
+- `.sign <texte>`
+- `.tattoo <texte>`
+- `.watercolor <texte>`
+
+### Utilisateur
+
+- `.block` / `.unblock` : aliases directs des commandes de blocage propriétaire.
+- `.pp` : envoie la photo de profil visible du contact ciblé.
+- `.fullpp` : en réponse à une image, remplace la photo de profil du numéro Bestla.
+- `.jid` : affiche le JID du contact ciblé.
+- `.gjid` : affiche le JID du groupe.
+- `.left` : fait quitter le groupe au numéro Bestla.
+
+### WhatsApp
+
+- `.caption <texte>` : réenvoie une image/vidéo avec une nouvelle légende.
+- `.delete`, `.dlt`, `.clear` : suppriment le message cité lorsque WhatsApp l'autorise.
+- `.contacts` : affiche les membres du groupe ou le JID du contact courant.
+- `.doc` : réenvoie un média comme document.
+- `.online` : force la présence en ligne.
+- `.poll Question | Oui | Non` : crée un sondage WhatsApp natif.
+- `.read` : marque le message comme lu.
+- `.status` : affiche le panneau des fonctions de statuts.
+- `.setstatus <texte>` ou en réponse à une image/vidéo : publie un statut destiné aux personnes de la discussion actuelle.
+- `.scstatus 10min | texte` : programme réellement un statut texte ; en réponse à une image/vidéo, `.scstatus 2h` programme aussi le média. `.scstatus liste` affiche les statuts actifs et `.scstatus supprimer <id>` les annule. Les médias planifiés sont stockés uniquement parce que la programmation est demandée explicitement, puis supprimés après l’envoi unique.
+- `.vv` : tente de récupérer une photo/vidéo vue unique ou un média à URL expirée. Bestla demande une réémission à WhatsApp via Baileys si nécessaire et force aussi une tentative `updateMediaMessage` lorsque le réessai automatique ne part pas ; la récupération dépend donc encore d'un appareil lié qui possède le média.
+- `.call` : affiche l'état du refus automatique des appels entrants. Baileys ne fournit pas un appel sortant fiable dans ce projet.
+
+La récupération de médias expirés s'appuie sur le mécanisme de réémission Baileys et n'ajoute aucune archive cachée de médias vue unique sur le VPS. Seule une commande explicite de programmation `.scstatus` peut enregistrer temporairement le média concerné dans `data/scheduled-status/` jusqu'à sa publication.
+
 ## Médias IA
 
 La génération d'images est préconfigurée avec un pool Cloudflare central à deux comptes : aucun Account ID ni token Cloudflare n'est demandé à l'installation.

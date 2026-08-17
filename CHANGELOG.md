@@ -1,3 +1,13 @@
+## 2026-08-17 — V17.8 — TextMaker, commandes utilisateur/WhatsApp et récupération média renforcée
+
+- Ajout d'un atelier TextMaker 100 % local, sans clé API : `.3d`, `.angel`, `.avenger`, `.blub`, `.bpink`, `.cat`, `.glitch`, `.glitter`, `.graffiti`, `.hacker`, `.light`, `.marvel`, `.neon`, `.sci`, `.sign`, `.tattoo` et `.watercolor`.
+- Ajout des commandes utilisateur `.fullpp`, `.jid`, `.gjid`, `.left` et des alias `.block`, `.unblock`, `.pp`.
+- Ajout des commandes WhatsApp `.call`, `.caption`, `.clear`, `.contacts`, `.delete`, `.dlt`, `.doc`, `.online`, `.poll`, `.read`, `.scstatus`, `.setstatus`, `.status` et `.vv`.
+- `.vv` et les autres outils média utilisent désormais `downloadMediaMessage` avec demande de réémission Baileys (`updateMediaMessage`) ; en cas d'échec, Bestla force aussi `updateMediaMessage` avant un second essai afin de contourner le défaut de réémission automatique observé sur Baileys rc14, puis conserve le repli CDN classique pour ne pas casser les fonctions existantes. Bestla ne conserve pas automatiquement les médias vue unique.
+- `.setstatus` publie un statut texte, image ou vidéo pour les personnes de la discussion actuelle ; `.scstatus` programme réellement un statut texte ou, en réponse à un média, une image/vidéo. `.scstatus liste` et `.scstatus supprimer <id>` gèrent les tâches. Un média planifié est stocké temporairement uniquement après cette demande explicite et supprimé après un envoi unique.
+- `.fullpp` remplace la photo de profil du numéro Bestla avec l'image citée ; `.photoprofil` reste disponible et possède maintenant l'alias `.pp` pour consulter une photo de profil visible.
+- Aucun nouveau paquet, token ou réglage `.env` n'est requis : TextMaker réutilise `sharp` et les fonctions WhatsApp réutilisent Baileys déjà présent.
+
 ## 2026-08-17 — V17.7 — Sélecteur de qualité + secours multi-réseaux
 
 - `.telecharger <lien>` ne part plus automatiquement en 720p : Bestla analyse d'abord le média, affiche les qualités détectées et attend un simple `720p`, `1080p`, `best` ou `audio 128k`.
