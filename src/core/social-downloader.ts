@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process'
 
 export class SocialDownloadError extends Error {}
 
-export type VideoQuality = 360 | 480 | 720 | 1080 | 'best'
+export type VideoQuality = 240 | 360 | 480 | 720 | 1080 | 1440 | 2160 | 'best'
 export type AudioBitrate = 64 | 96 | 128 | 160 | 192 | 256 | 320
 
 export interface SocialMediaInfo {
@@ -49,6 +49,11 @@ const TRUSTED_MEDIA_DOMAINS = [
   'twitch.tv',
   'reddit.com', 'redd.it',
   'pinterest.com', 'pin.it',
+  'snapchat.com',
+  'streamable.com',
+  'tumblr.com',
+  'flickr.com',
+  'imgur.com',
 ] as const
 
 function trustedMediaHostname(hostname: string): boolean {
@@ -108,7 +113,7 @@ export function normalizePublicMediaUrl(value: string): string {
   if (parsed.username || parsed.password) throw new SocialDownloadError('Les liens contenant des identifiants sont refusés.')
   if (looksPrivateHostname(parsed.hostname)) throw new SocialDownloadError('Les adresses locales ou privées ne sont pas acceptées.')
   if (!trustedMediaHostname(parsed.hostname)) {
-    throw new SocialDownloadError('Ce domaine n’est pas encore autorisé. Utilise un lien public YouTube, Instagram, Facebook, TikTok, X, Vimeo, Dailymotion, SoundCloud, Twitch, Reddit ou Pinterest.')
+    throw new SocialDownloadError('Ce domaine n’est pas encore autorisé. Utilise un lien public YouTube, Instagram, Facebook, TikTok, X, Vimeo, Dailymotion, SoundCloud, Twitch, Reddit, Pinterest, Snapchat, Streamable, Tumblr, Flickr ou Imgur.')
   }
   parsed.hash = ''
   return parsed.toString()
@@ -119,8 +124,8 @@ export function parseVideoQuality(value?: string): VideoQuality {
   if (!text || text === 'auto' || text === '720') return 720
   if (text === 'best' || text === 'max' || text === 'meilleure') return 'best'
   const number = Number(text)
-  if ([360, 480, 720, 1080].includes(number)) return number as Exclude<VideoQuality, 'best'>
-  throw new SocialDownloadError('Qualité invalide. Utilise 360p, 480p, 720p, 1080p ou best.')
+  if ([240, 360, 480, 720, 1080, 1440, 2160].includes(number)) return number as Exclude<VideoQuality, 'best'>
+  throw new SocialDownloadError('Qualité invalide. Utilise 240p, 360p, 480p, 720p, 1080p, 1440p, 2160p ou best.')
 }
 
 export function parseAudioBitrate(value?: string): AudioBitrate {
@@ -139,12 +144,80 @@ export type SocialDownloadChoice =
 export function parseSocialDownloadChoice(value: string): SocialDownloadChoice | undefined {
   const text = value.trim().toLowerCase().replace(/\s+/g, ' ')
   if (!text) return undefined
-  if (/^(?:360|480|720|1080)p?$/.test(text) || ['best', 'max', 'meilleure'].includes(text)) {
+  if (/^(?:240|360|480|720|1080|1440|2160)p?$/.test(text) || ['best', 'max', 'meilleure'].includes(text)) {
     return { kind: 'video', quality: parseVideoQuality(text) }
   }
   const audio = text.match(/^(?:audio|mp3)(?:\s+([0-9]{2,3}k(?:bps)?))?$/)
   if (audio) return { kind: 'audio', bitrate: parseAudioBitrate(audio[1] ?? '128k') }
   return undefined
+}
+
+export interface PendingSocialDownload {
+  url: string
+  qualities: VideoQuality[]
+  expiresAt: number
+}
+
+const pendingSocialDownloads = new Map<string, PendingSocialDownload>()
+
+function pendingSocialDownloadKey(sessionName: string, chatId: string, sender: string): string {
+  return `${sessionName}:${chatId}:${sender}`
+}
+
+export function availableVideoChoices(qualities: number[]): VideoQuality[] {
+  const standards = [240, 360, 480, 720, 1080, 1440, 2160] as const
+  const detected = standards.filter((height) =>
+    qualities.some((actual) => Math.abs(actual - height) <= Math.max(12, Math.round(height * 0.035))),
+  )
+  const base: VideoQuality[] = detected.length > 0 ? [...detected] : [360, 480, 720, 1080]
+  if (!base.includes('best')) base.push('best')
+  return base
+}
+
+export function setPendingSocialDownload(
+  sessionName: string,
+  chatId: string,
+  sender: string,
+  url: string,
+  qualities: VideoQuality[],
+  ttlMs = 10 * 60_000,
+): void {
+  pendingSocialDownloads.set(pendingSocialDownloadKey(sessionName, chatId, sender), {
+    url,
+    qualities,
+    expiresAt: Date.now() + ttlMs,
+  })
+}
+
+export function getPendingSocialDownload(
+  sessionName: string,
+  chatId: string,
+  sender: string,
+): PendingSocialDownload | undefined {
+  const key = pendingSocialDownloadKey(sessionName, chatId, sender)
+  const pending = pendingSocialDownloads.get(key)
+  if (!pending) return undefined
+  if (pending.expiresAt <= Date.now()) {
+    pendingSocialDownloads.delete(key)
+    return undefined
+  }
+  return pending
+}
+
+export function clearPendingSocialDownload(sessionName: string, chatId: string, sender: string): void {
+  pendingSocialDownloads.delete(pendingSocialDownloadKey(sessionName, chatId, sender))
+}
+
+export function videoChoiceAllowed(pending: PendingSocialDownload, choice: SocialDownloadChoice): boolean {
+  return choice.kind === 'audio' || pending.qualities.includes(choice.quality)
+}
+
+export function qualityMenuLines(qualities: VideoQuality[]): string[] {
+  const video = qualities.map((quality) => quality === 'best' ? 'best' : `${quality}p`).join(' • ')
+  return [
+    `Vidéo : ${video}`,
+    'Audio : audio 96k • audio 128k • audio 192k • audio 320k',
+  ]
 }
 
 export function videoFormatSelector(quality: VideoQuality): string {
@@ -157,14 +230,18 @@ export function youtubePotProviderArgs(home = homedir()): string[] {
   const serverHome = path.join(root, 'server')
   const generator = path.join(serverHome, 'build', 'generate_once.js')
   const xdg = process.env.XDG_CONFIG_HOME?.trim() || path.join(home, '.config')
-  const pluginNamespace = path.join(xdg, 'yt-dlp', 'plugins', 'bgutil-ytdlp-pot-provider', 'yt_dlp_plugins')
+  const pluginPackage = path.join(xdg, 'yt-dlp', 'plugins', 'bgutil-ytdlp-pot-provider')
+  const pluginNamespace = path.join(pluginPackage, 'yt_dlp_plugins')
+  const port = Number(process.env.BESTLA_POT_PROVIDER_PORT ?? 4416)
 
   if (!existsSync(generator) || !existsSync(pluginNamespace)) return []
   return [
+    '--plugin-dirs',
+    pluginPackage,
     '--extractor-args',
-    `youtubepot-bgutilscript:server_home=${serverHome}`,
+    `youtubepot-bgutilhttp:base_url=http://127.0.0.1:${Number.isFinite(port) ? port : 4416}`,
     '--extractor-args',
-    'youtube:player-client=mweb',
+    `youtubepot-bgutilscript:script_path=${generator}`,
   ]
 }
 
@@ -176,8 +253,58 @@ function baseArgs(): string[] {
     '--no-progress',
     '--js-runtimes',
     'node',
-    ...youtubePotProviderArgs(),
   ]
+}
+
+type PlatformKind = 'youtube' | 'instagram' | 'facebook' | 'tiktok' | 'x' | 'other'
+
+function platformKind(url: string): PlatformKind {
+  const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '')
+  if (host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com')) return 'youtube'
+  if (host === 'instagram.com' || host.endsWith('.instagram.com')) return 'instagram'
+  if (host === 'facebook.com' || host.endsWith('.facebook.com') || host === 'fb.watch') return 'facebook'
+  if (host === 'tiktok.com' || host.endsWith('.tiktok.com')) return 'tiktok'
+  if (host === 'x.com' || host.endsWith('.x.com') || host === 'twitter.com' || host.endsWith('.twitter.com')) return 'x'
+  return 'other'
+}
+
+interface YtDlpProfile {
+  label: string
+  args: string[]
+}
+
+const impersonationCache = new Map<string, Promise<boolean>>()
+
+async function canImpersonateChrome(executable: string): Promise<boolean> {
+  let cached = impersonationCache.get(executable)
+  if (!cached) {
+    cached = runExecutable(executable, ['--list-impersonate-targets'], process.cwd(), 12_000, 128_000)
+      .then(({ stdout }) => /^Chrome\s+.*curl_cffi(?!.*unavailable)/mi.test(stdout))
+      .catch(() => false)
+    impersonationCache.set(executable, cached)
+  }
+  return cached
+}
+
+async function platformProfiles(executable: string, url: string): Promise<YtDlpProfile[]> {
+  const platform = platformKind(url)
+  if (platform === 'youtube') {
+    const provider = youtubePotProviderArgs()
+    return [
+      { label: 'youtube-mweb-pot', args: [...provider, '--extractor-args', 'youtube:player-client=mweb'] },
+      { label: 'youtube-web-safari', args: ['--extractor-args', 'youtube:player-client=web_safari'] },
+      { label: 'youtube-default', args: [] },
+    ]
+  }
+
+  const profiles: YtDlpProfile[] = [{ label: `${platform}-standard`, args: [] }]
+  if (platform === 'instagram') {
+    profiles.push({ label: 'instagram-ios', args: ['--extractor-args', 'instagram:app_id=ios'] })
+  }
+  if (await canImpersonateChrome(executable)) {
+    profiles.push({ label: `${platform}-browser`, args: ['--impersonate', 'chrome'] })
+  }
+  return profiles
 }
 
 function executableCandidates(): string[] {
@@ -203,8 +330,9 @@ async function canExecute(candidate: string): Promise<boolean> {
 
 let downloaderPreparation: Promise<void> | undefined
 
-async function prepareDownloader(): Promise<void> {
+async function prepareDownloader(force = false): Promise<void> {
   const repairScript = path.resolve(process.cwd(), 'scripts', 'ensure-downloader.sh')
+  if (force) downloaderPreparation = undefined
   if (!downloaderPreparation) {
     downloaderPreparation = runExecutable('bash', [repairScript], process.cwd(), 360_000, 256_000).then(() => undefined)
   }
@@ -272,10 +400,16 @@ function runExecutable(
       if (code === 0) return resolve({ stdout, stderr })
       const detail = stderr.trim().split('\n').slice(-4).join(' ').replace(/\s+/g, ' ').slice(0, 500)
       if (/confirm (?:you(?:'|’)re|you are) not a bot|po token|proof.of.origin|bot check/i.test(detail)) {
-        return reject(new SocialDownloadError('YouTube a déclenché sa protection anti-bot. Bestla a préparé automatiquement le fournisseur PO Token ; réessaie le même lien une fois.'))
+        return reject(new SocialDownloadError('Protection anti-bot ou PO Token détectée par le site.'))
       }
-      if (/sign in|login required|private video|members.only|age.restricted|cookies required/i.test(detail)) {
-        return reject(new SocialDownloadError('Ce contenu demande réellement une connexion ou n’est pas public. Bestla ne contourne pas les contenus privés ou protégés.'))
+      if (/private video|members.only|age.restricted/i.test(detail)) {
+        return reject(new SocialDownloadError('Ce contenu est privé, réservé aux membres ou protégé. Bestla ne contourne pas ces restrictions.'))
+      }
+      if (/sign in|login required|cookies required|authentication required/i.test(detail)) {
+        return reject(new SocialDownloadError('Le site demande une session ou une connexion pour cette tentative.'))
+      }
+      if (/http error (?:403|429)|forbidden|captcha|challenge required|anti.bot/i.test(detail)) {
+        return reject(new SocialDownloadError('Le site a déclenché une protection temporaire anti-bot ou anti-abus.'))
       }
       if (/unsupported url/i.test(detail)) return reject(new SocialDownloadError('Ce lien n’est pas pris en charge par le moteur de téléchargement actuel.'))
       if (/requested format is not available/i.test(detail)) return reject(new SocialDownloadError('Cette qualité n’est pas disponible pour ce lien. Essaie une qualité plus basse ou best.'))
@@ -284,15 +418,75 @@ function runExecutable(
   })
 }
 
+function definitiveDownloadError(error: SocialDownloadError): boolean {
+  return /contenu est privé|réservé aux membres|protégé|n’est pas pris en charge|schéma|lien invalide|adresses locales|domaine n’est pas encore autorisé/i.test(error.message)
+}
+
+function protectionError(error: SocialDownloadError): boolean {
+  return /anti-bot|anti-abus|po token|403|429|forbidden|captcha|challenge/i.test(error.message)
+}
+
+async function runYtDlp(
+  executable: string,
+  url: string,
+  commandArgs: string[],
+  cwd: string,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<ProcessResult> {
+  let profiles = await platformProfiles(executable, url)
+  let lastError: SocialDownloadError | undefined
+  const platform = platformKind(url)
+
+  for (let index = 0; index < profiles.length; index += 1) {
+    const profile = profiles[index]!
+    const attempts = platform === 'youtube' && index === 0 ? 2 : 1
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        return await runExecutable(executable, [
+          ...baseArgs(),
+          ...profile.args,
+          ...commandArgs,
+          '--',
+          url,
+        ], cwd, timeoutMs)
+      } catch (error) {
+        if (!(error instanceof SocialDownloadError)) throw error
+        lastError = error
+        if (definitiveDownloadError(error)) throw error
+        if (platform === 'youtube' && index === 0 && attempt === 0 && protectionError(error)) {
+          await prepareDownloader(true).catch(() => undefined)
+          profiles = await platformProfiles(executable, url)
+          continue
+        }
+        break
+      }
+    }
+  }
+
+  if (platform === 'youtube' && lastError && protectionError(lastError)) {
+    throw new SocialDownloadError(
+      'YouTube bloque encore cette requête depuis l’IP du serveur malgré les secours automatiques PO Token, mweb et web_safari. Le lien peut être public ; réessaie plus tard ou teste un autre contenu public.',
+    )
+  }
+  if (lastError && protectionError(lastError)) {
+    throw new SocialDownloadError(
+      'Ce réseau social a déclenché une protection temporaire. Bestla a déjà essayé automatiquement son profil normal et son profil navigateur lorsqu’il est disponible.',
+    )
+  }
+  if (lastError && /session ou une connexion/i.test(lastError.message)) {
+    throw new SocialDownloadError(
+      'Ce réseau social exige toujours une connexion pour ce contenu après les profils automatiques de Bestla. Les contenus privés ou nécessitant une session ne sont pas contournés.',
+    )
+  }
+  throw lastError ?? new SocialDownloadError('Le téléchargement a échoué après les tentatives automatiques de secours.')
+}
+
 async function metadata(url: string): Promise<{ raw: JsonRecord; executable: string }> {
   const executable = await ensureYtDlp()
-  const result = await runExecutable(executable, [
-    ...baseArgs(),
+  const result = await runYtDlp(executable, url, [
     '--skip-download',
     '--dump-single-json',
-    '--',
-    url,
-  ], process.cwd(), 45_000)
+  ], process.cwd(), 60_000)
   let parsed: unknown
   try {
     parsed = JSON.parse(result.stdout)
@@ -364,22 +558,19 @@ export async function downloadSocialVideo(
   if (duration && duration > 3 * 60 * 60) throw new SocialDownloadError('La vidéo dépasse 3 heures et n’est pas adaptée à un envoi WhatsApp.')
 
   const candidates: VideoQuality[] = quality === 'best'
-    ? ['best', 1080, 720, 480, 360]
-    : [quality, ...([1080, 720, 480, 360] as const).filter((item) => item < quality)]
+    ? ['best', 2160, 1440, 1080, 720, 480, 360, 240]
+    : [quality, ...([2160, 1440, 1080, 720, 480, 360, 240] as const).filter((item) => item < quality)]
   let lastError: unknown
 
   for (const candidate of candidates) {
     const directory = await mkdtemp(path.join(tmpdir(), 'bestla-social-'))
     try {
-      await runExecutable(executable, [
-        ...baseArgs(),
+      await runYtDlp(executable, url, [
         '--max-filesize', maxFileSizeArg(maxBytes),
         '--format', videoFormatSelector(candidate),
         '--format-sort', candidate === 'best' ? 'vcodec:h264,acodec:aac' : `res:${candidate},vcodec:h264,acodec:aac`,
         '--merge-output-format', 'mp4',
         '--output', path.join(directory, 'bestla.%(ext)s'),
-        '--',
-        url,
       ], directory)
       const file = await downloadedFile(directory)
       const size = (await stat(file)).size
@@ -404,7 +595,7 @@ export async function downloadSocialVideo(
   }
 
   if (lastError instanceof SocialDownloadError && !/plus basse/i.test(lastError.message)) {
-    throw new SocialDownloadError(`${lastError.message} Même 360p dépasse la limite média configurée ou n’est pas disponible.`)
+    throw new SocialDownloadError(`${lastError.message} Même 240p dépasse la limite média configurée ou n’est pas disponible.`)
   }
   throw lastError instanceof SocialDownloadError ? lastError : new SocialDownloadError('Aucune qualité vidéo compatible n’a pu être téléchargée.')
 }
@@ -426,16 +617,13 @@ export async function downloadSocialAudio(
   for (const candidate of candidates) {
     const directory = await mkdtemp(path.join(tmpdir(), 'bestla-social-audio-'))
     try {
-      await runExecutable(executable, [
-        ...baseArgs(),
+      await runYtDlp(executable, url, [
         '--max-filesize', maxFileSizeArg(maxBytes),
         '--format', 'ba/b',
         '--extract-audio',
         '--audio-format', 'mp3',
         '--audio-quality', `${candidate}K`,
         '--output', path.join(directory, 'bestla.%(ext)s'),
-        '--',
-        url,
       ], directory)
       const file = await downloadedFile(directory)
       const size = (await stat(file)).size
