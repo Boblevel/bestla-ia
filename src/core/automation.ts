@@ -90,13 +90,22 @@ export function acknowledgementReaction(value: string, conversationStarted: bool
   if (!conversationStarted) return undefined
   const words = normalizeWords(value)
   if (words.length === 0 || words.length > 8) return undefined
-  const text = words.join(' ')
 
-  const thanks = /^(?:merci|merci beaucoup|grand merci|merci bien)(?: (?:mr|mrs|monsieur|madame|frere|bro|chef))?$/
-  if (thanks.test(text)) return '🙏'
+  const titles = new Set(['mr', 'mrs', 'monsieur', 'madame', 'frere', 'bro', 'chef'])
+  const cleanWords = [...words]
+  if (cleanWords.length > 1 && titles.has(cleanWords.at(-1) ?? '')) cleanWords.pop()
+  const text = cleanWords.join(' ')
 
-  const acknowledgement = /^(?:ok|okay|d accord|dac|ca marche|c est bon|entendu|bien recu|nickel|parfait|super|top|cool|pas de souci|pas de soucis|pas de probleme)(?: (?:mr|mrs|monsieur|madame|frere|bro|chef))?$/
-  if (acknowledgement.test(text)) return '👍'
+  const thanks = new Set(['merci', 'merci beaucoup', 'grand merci', 'merci bien'])
+  if (thanks.has(text)) return '🙏'
+
+  const acknowledgements = new Set([
+    'ok', 'okay', 'd accord', 'dac', 'ca marche', 'c est bon', 'entendu', 'bien recu',
+    'nickel', 'parfait', 'super', 'top', 'cool', 'pas de souci', 'pas de soucis',
+    'pas de probleme', 'ok pas de souci', 'ok pas de soucis', 'ok pas de probleme',
+    'ok c est bon', 'ok ca marche', 'okay pas de souci', 'okay pas de soucis',
+  ])
+  if (acknowledgements.has(text)) return '👍'
 
   return undefined
 }
