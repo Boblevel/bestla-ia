@@ -195,3 +195,39 @@ test('gère le catalogue et la livraison des produits digitaux', async (t) => {
   assert.equal(db.getDigitalProduct('pack1'), undefined)
 })
 
+
+test('persiste le réglage de lecture automatique des statuts', async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'bestla-status-auto-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const db = new JsonDatabase(testConfig(directory))
+  await db.init()
+
+  assert.equal(db.getAutoStatusView(), false)
+  await db.setAutoStatusView(true)
+  assert.equal(db.getAutoStatusView(), true)
+
+  const reopened = new JsonDatabase(testConfig(directory))
+  await reopened.init()
+  assert.equal(reopened.getAutoStatusView(), true)
+})
+
+test('persiste les règles de coordination entre sessions Bestla', async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'bestla-duo-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const db = new JsonDatabase(testConfig(directory))
+  await db.init()
+
+  const initial = db.getAutomation()
+  assert.equal(initial.peerRepliesEnabled, false)
+  assert.equal(initial.peerReplies.some((rule) => rule.trigger === 'taghid' && rule.response === 'hide'), true)
+
+  await db.mutateAutomation((settings) => {
+    settings.peerRepliesEnabled = true
+    settings.peerReplies.push({ id: 'test-duo', trigger: 'salutbot', response: 'présent' })
+  })
+
+  const reopened = new JsonDatabase(testConfig(directory))
+  await reopened.init()
+  assert.equal(reopened.getAutomation().peerRepliesEnabled, true)
+  assert.equal(reopened.getAutomation().peerReplies.some((rule) => rule.id === 'test-duo'), true)
+})

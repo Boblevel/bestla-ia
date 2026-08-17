@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import {
+  ASSISTANTAUTO_TARGET_REPLY_MS,
+  assistantAutoTimeoutFallback,
   acknowledgementReaction,
   customerMessageNeedsHuman,
   messageHasEmoji,
@@ -71,6 +73,17 @@ test('assistantauto utilise le modèle rapide et ne demande jamais d’imprimer 
   assert.equal(source.includes('serviceclientia:'), false)
   assert.match(source, /gemini-3\.5-flash-lite/)
   assert.match(source, /thinkingLevel: 'minimal'/)
+  assert.equal(ASSISTANTAUTO_TARGET_REPLY_MS, 3_000)
+  assert.match(source, /waitForAssistantAutoTarget\(startedAt\)/)
+  assert.match(source, /maxOutputTokens: 120/)
+  assert.match(source, /timeoutMs: 2_600/)
+  assert.match(source, /fallbackToConfiguredModel: false/)
   assert.match(source, /Retourne uniquement le message final à envoyer/)
   assert.match(source, /if \(handoff && !pending\) \{[\s\S]*await this\.db\.addTicket\(ticket\)/)
+})
+
+
+test('assistantauto possède une réponse locale de secours si le réseau dépasse la fenêtre rapide', () => {
+  assert.match(assistantAutoTimeoutFallback('Comment je peux faire ça ?', 'a'), /[?.]$/)
+  assert.ok(assistantAutoTimeoutFallback('Je veux connaître le prix', 'b').length > 10)
 })
