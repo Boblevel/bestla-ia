@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import {
   normalizePublicMediaUrl,
   parseAudioBitrate,
@@ -7,6 +10,7 @@ import {
   parseVideoQuality,
   SocialDownloadError,
   videoFormatSelector,
+  youtubePotProviderArgs,
 } from '../src/core/social-downloader.js'
 import { atempoFilter } from '../src/utils/ffmpeg.js'
 
@@ -48,4 +52,31 @@ test('comprend le choix de qualité après un simple collage de lien', () => {
   assert.deepEqual(parseSocialDownloadChoice('audio 192k'), { kind: 'audio', bitrate: 192 })
   assert.deepEqual(parseSocialDownloadChoice('mp3'), { kind: 'audio', bitrate: 128 })
   assert.equal(parseSocialDownloadChoice('bonjour'), undefined)
+})
+
+
+test('active automatiquement le provider PO Token YouTube lorsqu’il est installé', async () => {
+  const temp = await mkdtemp(path.join(os.tmpdir(), 'bestla-pot-test-'))
+  const oldXdg = process.env.XDG_CONFIG_HOME
+  try {
+    const root = path.join(temp, '.bestla', 'bgutil-ytdlp-pot-provider')
+    const server = path.join(root, 'server')
+    const plugin = path.join(temp, '.config', 'yt-dlp', 'plugins', 'bgutil-ytdlp-pot-provider', 'yt_dlp_plugins')
+    process.env.XDG_CONFIG_HOME = path.join(temp, '.config')
+    assert.deepEqual(youtubePotProviderArgs(temp), [])
+    await mkdir(path.join(server, 'build'), { recursive: true })
+    await mkdir(plugin, { recursive: true })
+    await writeFile(path.join(server, 'build', 'generate_once.js'), 'export {}')
+    const args = youtubePotProviderArgs(temp)
+    assert.deepEqual(args, [
+      '--extractor-args',
+      `youtubepot-bgutilscript:server_home=${server}`,
+      '--extractor-args',
+      'youtube:player-client=mweb',
+    ])
+  } finally {
+    if (oldXdg === undefined) delete process.env.XDG_CONFIG_HOME
+    else process.env.XDG_CONFIG_HOME = oldXdg
+    await rm(temp, { recursive: true, force: true })
+  }
 })
