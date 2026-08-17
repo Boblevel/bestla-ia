@@ -25,6 +25,7 @@ function testConfig(dataDir: string): AppConfig {
     rejectCalls: false,
     warnLimit: 3,
     maxMediaBytes: 20 * 1024 * 1024,
+    maxApkBytes: 100 * 1024 * 1024,
     logLevel: 'silent',
     timezone: 'Africa/Ouagadougou',
     api: { enabled: false, host: '127.0.0.1', port: 3000, key: '', rateLimitPerMinute: 60 },
@@ -219,7 +220,7 @@ test('persiste les règles de coordination entre sessions Bestla', async (t) => 
 
   const initial = db.getAutomation()
   assert.equal(initial.peerRepliesEnabled, false)
-  assert.equal(initial.peerReplies.some((rule) => rule.trigger === 'taghid' && rule.response === 'hide'), true)
+  assert.equal(initial.peerReplies.some((rule) => rule.trigger === 'mentioncachee' && rule.response === 'cache'), true)
 
   await db.mutateAutomation((settings) => {
     settings.peerRepliesEnabled = true
