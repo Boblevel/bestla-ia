@@ -1,10 +1,13 @@
 import {
   downloadContentFromMessage,
+  downloadMediaMessage,
   type DownloadableMessage,
   type MediaType,
   type proto,
   type WAMessage,
+  type WASocket,
 } from '@whiskeysockets/baileys'
+import { baileysLogger } from '../core/logger.js'
 import { unwrapMessage } from './text.js'
 
 function contextInfoFromContent(content: proto.IMessage | undefined): proto.IContextInfo | undefined {
@@ -67,13 +70,47 @@ export function findMedia(message: WAMessage): DownloadableMedia | undefined {
   return undefined
 }
 
-export async function downloadMedia(message: WAMessage, maxBytes: number): Promise<{
+export async function downloadMedia(message: WAMessage, maxBytes: number, sock?: WASocket): Promise<{
   buffer: Buffer
   type: MediaType
   mimetype: string
 }> {
   const media = findMedia(message)
   if (!media) throw new Error('Aucun média trouvé.')
+
+  // Avec le socket, Baileys peut demander à un autre appareil lié de réenvoyer
+  // un média dont l'URL CDN WhatsApp a expiré. Cela améliore aussi les médias
+  // éphémères encore récupérables par la session, sans conserver de copie locale.
+  if (sock) {
+    const downloadWithBaileys = async (): Promise<Buffer> => {
+      const result = await downloadMediaMessage(
+        message,
+        'buffer',
+        {},
+        { logger: baileysLogger, reuploadRequest: sock.updateMediaMessage },
+      )
+      return Buffer.isBuffer(result) ? result : Buffer.from(result as Uint8Array)
+    }
+
+    try {
+      const buffer = await downloadWithBaileys()
+      if (buffer.length > maxBytes) throw new Error('Le média dépasse la taille maximale autorisée.')
+      return { buffer, type: media.type, mimetype: media.mimetype }
+    } catch {
+      // Baileys rc14 possède un défaut connu où l'appel automatique à reuploadRequest
+      // peut ne pas être déclenché après un 410. On demande donc aussi la réémission
+      // explicitement avant une seconde tentative. La méthode met à jour le message
+      // reçu avec une nouvelle référence média lorsqu'un appareil lié possède encore le fichier.
+      try {
+        await sock.updateMediaMessage(message)
+        const buffer = await downloadWithBaileys()
+        if (buffer.length > maxBytes) throw new Error('Le média dépasse la taille maximale autorisée.')
+        return { buffer, type: media.type, mimetype: media.mimetype }
+      } catch {
+        // Ne casse pas les commandes média déjà validées : dernier repli sur le flux CDN classique.
+      }
+    }
+  }
 
   const stream = await downloadContentFromMessage(media.node, media.type)
   const chunks: Buffer[] = []
