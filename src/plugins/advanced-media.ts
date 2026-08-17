@@ -3,10 +3,14 @@ import type { BotCommand, CommandContext } from '../types.js'
 import { brandedPanel } from '../utils/brand.js'
 import {
   applyAudioEffect,
+  captureVideoFrame,
+  changeAudioSpeed,
+  changeVideoSpeed,
   compressVideo,
   convertAudioToMp3,
   extractAudioFromVideo,
   MediaProcessError,
+  muteVideo,
   rotateVideo,
   trimAudio,
   trimVideo,
@@ -201,6 +205,61 @@ export const advancedMediaCommands: BotCommand[] = [
     },
   },
   {
+    name: 'vitesse',
+    aliases: ['accelerer', 'ralentir'],
+    description: 'Change la vitesse d’un audio ou d’une vidéo en gardant la voix naturelle.',
+    usage: '<0.5 à 3> (en réponse à un audio/une vidéo)',
+    category: 'Audio & Vidéo',
+    cooldownSeconds: 15,
+    async execute(ctx) {
+      const speed = parseSeconds(ctx.args[0])
+      if (speed === undefined || speed < 0.5 || speed > 3) {
+        return void (await ctx.reply(`Utilisation : ${ctx.prefix}vitesse 1.5 (de 0.5x à 3x)`))
+      }
+      const media = await selectedMedia(ctx, ['audio', 'video'])
+      if (!media) return
+      if (media.type === 'audio') {
+        const result = await changeAudioSpeed(media.buffer, media.mimetype, speed)
+        await sendAudio(ctx, result, `Vitesse audio réglée sur ${speed}x.`)
+        return
+      }
+      const result = await changeVideoSpeed(media.buffer, media.mimetype, speed)
+      await sendVideo(ctx, result, `Vitesse vidéo réglée sur ${speed}x.`)
+    },
+  },
+  {
+    name: 'muetvideo',
+    aliases: ['enleveraudio', 'videosansson'],
+    description: 'Retire entièrement le son d’une vidéo.',
+    usage: '(en réponse à une vidéo)',
+    category: 'Audio & Vidéo',
+    cooldownSeconds: 12,
+    async execute(ctx) {
+      const media = await selectedMedia(ctx, ['video'])
+      if (!media) return
+      const result = await muteVideo(media.buffer, media.mimetype)
+      await sendVideo(ctx, result, 'Vidéo sans son.')
+    },
+  },
+  {
+    name: 'capturevideo',
+    aliases: ['framevideo', 'photodevideo'],
+    description: 'Extrait une image précise d’une vidéo à la seconde choisie.',
+    usage: '[seconde] (en réponse à une vidéo)',
+    category: 'Audio & Vidéo',
+    cooldownSeconds: 10,
+    async execute(ctx) {
+      const second = parseSeconds(ctx.args[0] ?? '0')
+      if (second === undefined || second < 0 || second > 7_200) {
+        return void (await ctx.reply(`Utilisation : ${ctx.prefix}capturevideo 5`))
+      }
+      const media = await selectedMedia(ctx, ['video'])
+      if (!media) return
+      const result = await captureVideoFrame(media.buffer, media.mimetype, second)
+      await ctx.send({ image: result, caption: `Capture à ${second}s.` })
+    },
+  },
+  {
     name: 'autocollantvideo',
     aliases: ['vignettevideo'],
     description: 'Transforme les 8 premières secondes d’une vidéo en autocollant animé.',
@@ -264,8 +323,8 @@ export const advancedMediaCommands: BotCommand[] = [
           [
             `${ctx.prefix}convertiraudio • ${ctx.prefix}effetaudio • ${ctx.prefix}couperaudio`,
             `${ctx.prefix}extraireaudio • ${ctx.prefix}compresservideo • ${ctx.prefix}tournervideo`,
-            `${ctx.prefix}coupervideo • ${ctx.prefix}autocollantvideo`,
-            `${ctx.prefix}creerpdf • ${ctx.prefix}texteimage`,
+            `${ctx.prefix}coupervideo • ${ctx.prefix}vitesse • ${ctx.prefix}muetvideo • ${ctx.prefix}capturevideo`,
+            `${ctx.prefix}autocollantvideo • ${ctx.prefix}creerpdf • ${ctx.prefix}texteimage`,
             'Réponds au média ou envoie-le avec la commande en légende.',
           ],
           ctx.config,

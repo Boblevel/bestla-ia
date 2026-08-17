@@ -268,6 +268,63 @@ export const automationCommands: BotCommand[] = [
     },
   },
   {
+    name: 'duo',
+    aliases: ['autoreponsebot', 'botsduo'],
+    description: 'Coordonne plusieurs numéros Bestla dans un même groupe sans doubler les commandes.',
+    usage: 'activer|desactiver|statut|liste|ajouter déclencheur | réponse|retirer id',
+    category: 'Automatisation',
+    ownerOnly: true,
+    async execute(ctx) {
+      const action = ctx.args[0]?.toLowerCase()
+      if (!action || action === 'statut') {
+        const settings = ctx.db.getAutomation()
+        return void (await ctx.reply(
+          `Mode duo : *${settings.peerRepliesEnabled ? 'ACTIVÉ' : 'DÉSACTIVÉ'}*\nRègles : *${settings.peerReplies.length}*\nSessions configurées : *${ctx.config.sessionNames.length}*`,
+        ))
+      }
+      if (action === 'activer' || action === 'desactiver') {
+        await ctx.db.mutateAutomation((settings) => {
+          settings.peerRepliesEnabled = action === 'activer'
+        })
+        return void (await ctx.reply(
+          `Mode duo *${action === 'activer' ? 'activé' : 'désactivé'}*.${action === 'activer' ? ' Avec deux numéros Bestla dans le même groupe, une commande envoyée par un numéro ne sera pas rejouée par l’autre.' : ''}`,
+        ))
+      }
+      if (action === 'liste') {
+        const rules = ctx.db.getAutomation().peerReplies
+        return void (await ctx.reply(
+          rules.length
+            ? `*RÈGLES DUO*\n${rules.map((rule) => `#${rule.id} • “${rule.trigger}” → ${rule.response}`).join('\n')}`
+            : 'Aucune règle duo.',
+        ))
+      }
+      if (action === 'retirer') {
+        const id = ctx.args[1]
+        if (!id) return void (await ctx.reply(`Utilisation : ${ctx.prefix}duo retirer identifiant`))
+        let removed = false
+        await ctx.db.mutateAutomation((settings) => {
+          const before = settings.peerReplies.length
+          settings.peerReplies = settings.peerReplies.filter((rule) => rule.id !== id)
+          removed = settings.peerReplies.length < before
+        })
+        return void (await ctx.reply(removed ? 'Règle duo retirée.' : 'Identifiant introuvable.'))
+      }
+      if (action === 'ajouter') {
+        const pair = splitAtPipe(ctx.args.slice(1).join(' '))
+        if (!pair) return void (await ctx.reply(`Utilisation : ${ctx.prefix}duo ajouter taghid | hide`))
+        const trigger = normalizeTrigger(pair[0]).slice(0, 120)
+        const response = pair[1].trim().slice(0, 500)
+        if (!trigger || !response) return void (await ctx.reply('Déclencheur ou réponse invalide.'))
+        const rule = { id: shortId(), trigger, response }
+        await ctx.db.mutateAutomation((settings) => {
+          settings.peerReplies.push(rule)
+        })
+        return void (await ctx.reply(`Règle duo créée : *#${rule.id}*. Active-la avec ${ctx.prefix}duo activer.`))
+      }
+      await ctx.reply(`Utilisation : ${ctx.prefix}duo activer|desactiver|statut|liste|ajouter|retirer`)
+    },
+  },
+  {
     name: 'programmer',
     aliases: ['rappel'],
     description: 'Programme un message dans le chat actuel, une seule fois ou chaque jour.',

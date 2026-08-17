@@ -84,6 +84,28 @@ export const groupCommands: BotCommand[] = [
     },
   },
   {
+    name: 'taghid',
+    aliases: ['hidetag', 'mentioncachee'],
+    description: 'Mentionne discrètement tous les membres sans afficher la liste des @numéros.',
+    usage: '[message]',
+    category: 'Groupe',
+    groupOnly: true,
+    adminOnly: true,
+    cooldownSeconds: 20,
+    async execute(ctx) {
+      const participants = ctx.groupMetadata?.participants.map((participant) => participant.id) ?? []
+      if (participants.length === 0) return void (await ctx.reply('Liste des membres indisponible.'))
+      const text = ctx.argText.trim().slice(0, 2_000) || 'Notification du groupe'
+      for (let index = 0; index < participants.length; index += 100) {
+        const batch = participants.slice(index, index + 100)
+        await ctx.send({
+          text: index === 0 ? text : '\u200B',
+          mentions: batch,
+        })
+      }
+    },
+  },
+  {
     name: 'ouvrir',
     description: 'Autorise tous les membres à écrire.',
     category: 'Groupe',

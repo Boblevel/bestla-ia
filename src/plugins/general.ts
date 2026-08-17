@@ -226,7 +226,7 @@ export const generalCommands: BotCommand[] = [
   },
   {
     name: 'latence',
-    aliases: ['vitesse'],
+    aliases: ['rapidite'],
     description: 'Mesure le temps de réponse de Bestla iA.',
     category: 'Général',
     cooldownSeconds: 2,
@@ -253,7 +253,7 @@ export const generalCommands: BotCommand[] = [
   },
   {
     name: 'info',
-    aliases: ['apropos'],
+    aliases: ['infobot'],
     description: 'Affiche l’identité et l’état général du bot.',
     category: 'Général',
     async execute(ctx) {
