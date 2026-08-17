@@ -1,6 +1,7 @@
 import type { BotCommand } from '../types.js'
 import { jidToMention, phoneToJid } from '../utils/jid.js'
 import { safeFetchBuffer } from '../utils/safe-fetch.js'
+import { pendingStatusCount, readRememberedStatuses } from '../core/status-viewer.js'
 
 function safeContactName(value: string): string {
   return value.trim().replace(/[\r\n;:]/g, ' ').slice(0, 60) || 'Contact Bestla'
@@ -68,6 +69,99 @@ export const whatsappCommands: BotCommand[] = [
     async execute(ctx) {
       await ctx.sock.readMessages([ctx.message.key])
       await ctx.react('👁️')
+    },
+  },
+  {
+    name: 'lirestatuts',
+    aliases: ['voirstatuts', 'statutsvus'],
+    description: 'Marque en une fois comme vus les statuts récents reçus par cette session.',
+    category: 'WhatsApp',
+    ownerOnly: true,
+    cooldownSeconds: 3,
+    async execute(ctx) {
+      const before = pendingStatusCount(ctx.sock)
+      if (before === 0) {
+        return void (await ctx.reply('Aucun nouveau statut mémorisé pour cette session. Les prochains statuts reçus seront disponibles ici.'))
+      }
+      const result = await readRememberedStatuses(ctx.sock)
+      if (result.failed === 0) {
+        return void (await ctx.reply(`${result.read} statut${result.read > 1 ? 's' : ''} marqué${result.read > 1 ? 's' : ''} comme vu${result.read > 1 ? 's' : ''}.`))
+      }
+      await ctx.reply(`${result.read} statut(s) marqué(s) comme vus ; ${result.failed} n'ont pas pu être confirmés par WhatsApp.`)
+    },
+  },
+  {
+    name: 'autostatuts',
+    aliases: ['autovuestatuts', 'statutsauto'],
+    description: 'Active ou désactive la lecture automatique des nouveaux statuts WhatsApp.',
+    usage: 'activer|desactiver|statut',
+    category: 'WhatsApp',
+    ownerOnly: true,
+    cooldownSeconds: 2,
+    async execute(ctx) {
+      const action = ctx.args[0]?.toLowerCase()
+      if (!action || action === 'statut') {
+        return void (await ctx.reply(`Lecture automatique des statuts : *${ctx.db.getAutoStatusView() ? 'ACTIVÉE' : 'DÉSACTIVÉE'}*.`))
+      }
+      if (action !== 'activer' && action !== 'desactiver') {
+        return void (await ctx.reply(`Utilisation : ${ctx.prefix}autostatuts activer|desactiver|statut`))
+      }
+      const enabled = action === 'activer'
+      await ctx.db.setAutoStatusView(enabled)
+      await ctx.reply(`Lecture automatique des nouveaux statuts *${enabled ? 'activée' : 'désactivée'}*.`)
+    },
+  },
+  {
+    name: 'presence',
+    aliases: ['presencewa'],
+    description: 'Change manuellement la présence WhatsApp du compte connecté.',
+    usage: 'enligne|horsligne|ecriture|audio|pause',
+    category: 'WhatsApp',
+    ownerOnly: true,
+    cooldownSeconds: 2,
+    async execute(ctx) {
+      const action = ctx.args[0]?.toLowerCase()
+      const modes = {
+        enligne: 'available',
+        horsligne: 'unavailable',
+        ecriture: 'composing',
+        audio: 'recording',
+        pause: 'paused',
+      } as const
+      const mode = action ? modes[action as keyof typeof modes] : undefined
+      if (!mode) return void (await ctx.reply(`Utilisation : ${ctx.prefix}presence enligne|horsligne|ecriture|audio|pause`))
+      if (mode === 'available' || mode === 'unavailable') await ctx.sock.sendPresenceUpdate(mode)
+      else await ctx.sock.sendPresenceUpdate(mode, ctx.chatId)
+      await ctx.reply(`Présence WhatsApp réglée sur *${action}*.`)
+    },
+  },
+  {
+    name: 'apropos',
+    aliases: ['biowhatsapp', 'statutprofil'],
+    description: 'Modifie le texte À propos du profil WhatsApp connecté.',
+    usage: '<texte>',
+    category: 'WhatsApp',
+    ownerOnly: true,
+    cooldownSeconds: 5,
+    async execute(ctx) {
+      const text = ctx.argText.trim().replace(/\s+/g, ' ').slice(0, 139)
+      if (!text) return void (await ctx.reply(`Utilisation : ${ctx.prefix}apropos Disponible pour vos messages.`))
+      await ctx.sock.updateProfileStatus(text)
+      await ctx.reply('Texte À propos du profil WhatsApp mis à jour.')
+    },
+  },
+  {
+    name: 'confidentialite',
+    aliases: ['privacywa'],
+    description: 'Affiche les réglages de confidentialité visibles par Baileys.',
+    category: 'WhatsApp',
+    ownerOnly: true,
+    cooldownSeconds: 10,
+    async execute(ctx) {
+      const settings = await ctx.sock.fetchPrivacySettings(true)
+      const entries = Object.entries(settings).filter(([, value]) => typeof value === 'string')
+      if (!entries.length) return void (await ctx.reply('WhatsApp n’a renvoyé aucun réglage de confidentialité exploitable.'))
+      await ctx.reply(`*CONFIDENTIALITÉ WHATSAPP*\n\n${entries.map(([key, value]) => `${key} : *${String(value)}*`).join('\n')}`)
     },
   },
 ]
