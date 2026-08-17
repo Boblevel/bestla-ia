@@ -13,6 +13,7 @@ import { mediaCommands } from './media.js'
 import { moderationCommands } from './moderation.js'
 import { ownerCommands } from './owner.js'
 import { whatsappCommands } from './whatsapp.js'
+import { ttsCommands } from './tts.js'
 
 export function registerBuiltInCommands(registry: CommandRegistry): void {
   ;[
@@ -23,6 +24,7 @@ export function registerBuiltInCommands(registry: CommandRegistry): void {
     ...mediaCommands,
     ...generativeMediaCommands,
     ...advancedMediaCommands,
+    ...ttsCommands,
     ...automationCommands,
     ...budgetCommands,
     ...businessCommands,
