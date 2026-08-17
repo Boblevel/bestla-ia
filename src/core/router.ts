@@ -7,6 +7,7 @@ import { mentionedJids, quotedAsMessage } from '../utils/message.js'
 import { messageText, messageType, parseCommand } from '../utils/text.js'
 import type { JsonDatabase } from './database.js'
 import { AutomationService, isSiblingBestlaSession } from './automation.js'
+import { downloadApk, isPotentialApkLink } from './apk-downloader.js'
 import { logger } from './logger.js'
 import { ModerationService } from './moderation.js'
 import {
@@ -195,9 +196,32 @@ export class MessageRouter {
       }
 
       if (!isGroup && /^https?:\/\/\S+$/i.test(body.trim())) {
+        const pastedUrl = body.trim()
+        if (isPotentialApkLink(pastedUrl)) {
+          try {
+            await send({ text: 'Lien APK détecté. Téléchargement en cours…' })
+            const apk = await downloadApk(pastedUrl, this.config.maxApkBytes)
+            await send({
+              document: apk.buffer,
+              mimetype: 'application/vnd.android.package-archive',
+              fileName: apk.fileName,
+              caption: [
+                '*APK téléchargé par Bestla iA*',
+                apk.packageId ? `Paquet : ${apk.packageId}` : undefined,
+                `Source : ${apk.sourceLabel}`,
+                `Taille : ${(apk.buffer.length / 1024 / 1024).toFixed(1)} Mo`,
+                `SHA256 : ${apk.sha256}`,
+              ].filter(Boolean).join('\n'),
+            })
+          } catch (error) {
+            await send({ text: error instanceof Error ? error.message : 'Impossible de télécharger cet APK.' })
+          }
+          return
+        }
+
         let url: string | undefined
         try {
-          url = normalizePublicMediaUrl(body.trim())
+          url = normalizePublicMediaUrl(pastedUrl)
         } catch (error) {
           if (!(error instanceof SocialDownloadError)) throw error
         }

@@ -188,8 +188,8 @@ const DEFAULT_AUTOMATION: AutomationSettings = {
   peerReplies: [
     {
       id: 'duo-default',
-      trigger: 'taghid',
-      response: 'hide',
+      trigger: 'mentioncachee',
+      response: 'cache',
     },
   ],
   customerAi: {
