@@ -117,10 +117,64 @@ install_pot_provider() {
   fi
 }
 
+
+
+pot_server_ready() {
+  local port="$1"
+  node - "$port" >/dev/null 2>&1 <<'NODE'
+const net = require('node:net')
+const port = Number(process.argv[2])
+const socket = net.createConnection({ host: '127.0.0.1', port })
+const timer = setTimeout(() => { socket.destroy(); process.exit(1) }, 800)
+socket.once('connect', () => { clearTimeout(timer); socket.end(); process.exit(0) })
+socket.once('error', () => { clearTimeout(timer); process.exit(1) })
+NODE
+}
+
+start_pot_provider() {
+  local pot_root="${BESTLA_POT_PROVIDER_HOME:-${HOME:-/tmp}/.bestla/bgutil-ytdlp-pot-provider}"
+  local server_dir="${pot_root}/server"
+  local main_js="${server_dir}/build/main.js"
+  local port="${BESTLA_POT_PROVIDER_PORT:-4416}"
+  local pid_file="${pot_root}/provider.pid"
+  local log_file="${pot_root}/provider.log"
+
+  [ -f "$main_js" ] || return 0
+  if pot_server_ready "$port"; then
+    return 0
+  fi
+
+  if [ -f "$pid_file" ]; then
+    local old_pid
+    old_pid="$(cat "$pid_file" 2>/dev/null || true)"
+    if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
+      kill "$old_pid" 2>/dev/null || true
+      sleep 0.2
+    fi
+  fi
+
+  (
+    cd "$server_dir" || exit 1
+    nohup node build/main.js --port "$port" >>"$log_file" 2>&1 &
+    echo $! >"$pid_file"
+  ) || return 0
+
+  local attempt
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    if pot_server_ready "$port"; then
+      return 0
+    fi
+    sleep 0.25
+  done
+  warn "le serveur PO Token local n'a pas démarré; Bestla gardera le mode script et les profils YouTube de secours."
+  return 0
+}
+
 if ! install_ytdlp; then
   warn "yt-dlp n'a pas pu être installé automatiquement."
   exit 1
 fi
 
 install_pot_provider
+start_pot_provider
 exit 0
