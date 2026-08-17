@@ -6,9 +6,10 @@ import { jidToMention, normalizeUserJid, phoneToJid, sameUser } from '../utils/j
 import { mentionedJids, quotedAsMessage } from '../utils/message.js'
 import { messageText, messageType, parseCommand } from '../utils/text.js'
 import type { JsonDatabase } from './database.js'
-import { AutomationService } from './automation.js'
+import { AutomationService, isSiblingBestlaSession } from './automation.js'
 import { logger } from './logger.js'
 import { ModerationService } from './moderation.js'
+import { downloadSocialAudio, downloadSocialVideo, normalizePublicMediaUrl, parseSocialDownloadChoice, SocialDownloadError } from './social-downloader.js'
 import { CooldownManager } from './rate-limiter.js'
 import type { CommandRegistry } from './registry.js'
 import type { SessionRuntime } from './session-manager.js'
@@ -27,6 +28,7 @@ export class MessageRouter {
   private readonly automation: AutomationService
   private readonly cooldowns = new CooldownManager()
   private readonly webhook: WebhookDispatcher
+  private readonly pendingSocialDownloads = new Map<string, { url: string; expiresAt: number }>()
 
   constructor(
     private readonly config: AppConfig,
@@ -121,6 +123,80 @@ export class MessageRouter {
       if (blocked) return
     }
 
+    // Avec plusieurs numéros Bestla dans le même groupe, un message envoyé
+    // par une session apparaît comme message entrant sur les autres sessions.
+    // On laisse uniquement le module duo le traiter, puis on coupe ici afin
+    // d'éviter qu'une commande soit exécutée deux fois par deux numéros.
+    const siblingBestlaSession = !fromMe && isSiblingBestlaSession(this.config, runtime.name, sender)
+    if (siblingBestlaSession) {
+      const handledPeer = await this.automation.inspectPeer({
+        sessionName: runtime.name,
+        chatId,
+        sender,
+        body,
+        isGroup,
+        messageKey: message.key,
+        reply: (text) => send({ text }),
+        react: (emoji) => runtime.send(chatId, { react: { text: emoji, key: message.key } }),
+        typing: (active) => runtime.sock.sendPresenceUpdate(active ? 'composing' : 'paused', chatId),
+      })
+      logger.info(
+        { session: runtime.name, chatId, sender, handledPeer },
+        'Message provenant d’une autre session Bestla traité',
+      )
+      return
+    }
+
+    if (!parsed.isCommand && !isGroup && this.config.commandsEnabled && (isOwner || this.db.getPublicMode(this.config.publicMode))) {
+      const pendingKey = `${runtime.name}:${chatId}:${sender}`
+      const pending = this.pendingSocialDownloads.get(pendingKey)
+      if (pending && pending.expiresAt <= Date.now()) this.pendingSocialDownloads.delete(pendingKey)
+
+      const choice = pending && pending.expiresAt > Date.now() ? parseSocialDownloadChoice(body) : undefined
+      if (pending && choice) {
+        this.pendingSocialDownloads.delete(pendingKey)
+        try {
+          if (choice.kind === 'video') {
+            await send({ text: `Téléchargement en cours (${choice.quality === 'best' ? 'meilleure qualité' : `${choice.quality}p max`})…` })
+            const media = await downloadSocialVideo(pending.url, choice.quality, this.config.maxMediaBytes)
+            if (media.mimetype.startsWith('video/')) {
+              await send({ video: media.buffer, mimetype: media.mimetype, caption: `${media.title}\n${media.qualityLabel}` })
+            } else {
+              await send({ document: media.buffer, mimetype: media.mimetype, fileName: media.fileName, caption: media.title })
+            }
+          } else {
+            await send({ text: `Extraction audio en cours (${choice.bitrate} kb/s)…` })
+            const media = await downloadSocialAudio(pending.url, choice.bitrate, this.config.maxMediaBytes)
+            await send({ audio: media.buffer, mimetype: 'audio/mpeg', ptt: false })
+          }
+        } catch (error) {
+          if (error instanceof SocialDownloadError) await send({ text: error.message })
+          else throw error
+        }
+        return
+      }
+
+      if (/^https?:\/\/\S+$/i.test(body.trim())) {
+        try {
+          const url = normalizePublicMediaUrl(body.trim())
+          this.pendingSocialDownloads.set(pendingKey, { url, expiresAt: Date.now() + 10 * 60_000 })
+          await send({
+            text: [
+              'Lien média détecté. Choisis simplement la qualité :',
+              '360p • 480p • 720p • 1080p • best',
+              'ou : audio 128k',
+              '',
+              `Tu peux aussi utiliser ${prefix}telecharger ou ${prefix}telechargeraudio directement.`,
+            ].join('\n'),
+          })
+          return
+        } catch (error) {
+          if (!(error instanceof SocialDownloadError)) throw error
+          // Un lien qui n'est pas un domaine média autorisé continue normalement.
+        }
+      }
+    }
+
     if (!parsed.isCommand && !fromMe) {
       const handled = await this.automation.inspect({
         sessionName: runtime.name,
@@ -131,6 +207,7 @@ export class MessageRouter {
         messageKey: message.key,
         reply: (text) => send({ text }),
         react: (emoji) => runtime.send(chatId, { react: { text: emoji, key: message.key } }),
+        typing: (active) => runtime.sock.sendPresenceUpdate(active ? 'composing' : 'paused', chatId),
       })
       logger.info(
         { session: runtime.name, chatId, sender, isGroup, handled },
@@ -202,7 +279,10 @@ export class MessageRouter {
     if (this.config.commandReactions) {
       await runtime.send(chatId, { react: { text: '⏳', key: message.key } }).catch(() => undefined)
     }
-    await runtime.sock.sendPresenceUpdate('composing', chatId).catch(() => undefined)
+    const commandControlsPresence = command.name === 'presence'
+    if (!commandControlsPresence) {
+      await runtime.sock.sendPresenceUpdate('composing', chatId).catch(() => undefined)
+    }
     let succeeded = false
     try {
       await command.execute(context)
@@ -214,7 +294,9 @@ export class MessageRouter {
       )
       await reply('Une erreur est survenue pendant cette commande. Consulte les journaux du serveur.')
     } finally {
-      await runtime.sock.sendPresenceUpdate('paused', chatId).catch(() => undefined)
+      if (!commandControlsPresence) {
+        await runtime.sock.sendPresenceUpdate('paused', chatId).catch(() => undefined)
+      }
       if (this.config.commandReactions) {
         await runtime.send(chatId, { react: { text: succeeded ? '✅' : '❌', key: message.key } }).catch(() => undefined)
       }

@@ -104,7 +104,7 @@ export class AiService {
   ): Promise<string> {
     const model = encodeURIComponent(modelName)
     const maxOutputTokens = clampInteger(options.maxOutputTokens, this.config.ai.maxOutputTokens, 64, 2_000)
-    const timeoutMs = clampInteger(options.timeoutMs, 45_000, 5_000, 60_000)
+    const timeoutMs = clampInteger(options.timeoutMs, 45_000, 1_200, 60_000)
     const thinkingLevel = options.thinkingLevel
     const generationConfig: Record<string, unknown> = { maxOutputTokens }
     if (thinkingLevel && /^gemini-3(?:\.|-)/i.test(modelName)) {

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { WAMessageKey } from '@whiskeysockets/baileys'
 import type { AppConfig } from '../config.js'
+import { phoneToJid, sameUser } from '../utils/jid.js'
 import { normalizeWords } from '../utils/text.js'
 import { AiService, AiServiceError } from './ai.js'
 import type { AutomationScope, AutomationSettings, JsonDatabase, SupportTicket } from './database.js'
@@ -14,6 +15,7 @@ interface AutomationInput {
   messageKey: WAMessageKey
   reply(text: string): Promise<unknown>
   react(emoji: string): Promise<unknown>
+  typing(active: boolean): Promise<unknown>
 }
 
 const AI_TICKET_PREFIX = '[IA]'
@@ -36,6 +38,15 @@ interface QuickHumanReply {
 const CONVERSATION_MEMORY_TTL_MS = 6 * 60 * 60_000
 const CONVERSATION_MEMORY_MAX_TURNS = 6
 const ASSISTANTAUTO_FAST_MODEL = 'gemini-3.5-flash-lite'
+export const ASSISTANTAUTO_TARGET_REPLY_MS = 3_000
+
+function sleep(milliseconds: number): Promise<void> {
+  return milliseconds > 0 ? new Promise((resolve) => setTimeout(resolve, milliseconds)) : Promise.resolve()
+}
+
+export async function waitForAssistantAutoTarget(startedAt: number, targetMs = ASSISTANTAUTO_TARGET_REPLY_MS): Promise<void> {
+  await sleep(Math.max(0, targetMs - (Date.now() - startedAt)))
+}
 
 function stripInternalMarkers(value: string): string {
   return value
@@ -194,6 +205,44 @@ export function quickHumanReply(value: string, conversationStarted: boolean, sta
   return { handled: false }
 }
 
+
+export function assistantAutoTimeoutFallback(value: string, stableKey = value): string {
+  const text = normalizedSentence(value)
+  if (customerMessageNeedsHuman(value)) {
+    return stablePick([
+      'Oui, je vois. Envoie-moi juste le détail important et je regarde ça.',
+      'D’accord, je vois. Donne-moi le détail principal et on avance.',
+      'Je vois. Précise-moi juste le point important et je te réponds.',
+    ], stableKey)
+  }
+  const looksLikeQuestion = /[?？]\s*$/.test(value.trim()) || /^(comment|pourquoi|combien|quel|quelle|quels|quelles|ou|quand|qui|est ce que|tu peux|vous pouvez)\b/i.test(text)
+  if (looksLikeQuestion) {
+    return stablePick([
+      'Je vois. Tu peux préciser un peu ce que tu veux savoir ?',
+      'D’accord. Précise-moi juste un peu le point et je te réponds.',
+      'Je vois ce que tu demandes. Donne-moi juste un peu plus de détail.',
+    ], stableKey)
+  }
+  return stablePick([
+    'Oui, je vois ce que tu veux dire. Dis-m’en un peu plus.',
+    'Je vois. Continue, je t’écoute.',
+    'D’accord, je vois. Tu peux préciser un peu ?',
+  ], stableKey)
+}
+
+export function isSiblingBestlaSession(
+  config: AppConfig,
+  sessionName: string,
+  sender: string,
+): boolean {
+  for (const [name, phone] of config.sessionPhones) {
+    if (name === sessionName || !phone) continue
+    const jid = phoneToJid(phone)
+    if (jid && sameUser(sender, jid)) return true
+  }
+  return false
+}
+
 export function isOutsideBusinessHours(settings: AutomationSettings, date = new Date()): boolean {
   const hours = settings.businessHours
   if (!hours.enabled) return false
@@ -215,6 +264,27 @@ export class AutomationService {
     private readonly db: JsonDatabase,
     private readonly config: AppConfig,
   ) {}
+
+  /**
+   * Coordination entre plusieurs numéros Bestla connectés au même projet.
+   * Un message provenant d'une autre session Bestla peut déclencher une petite
+   * réponse exacte dans un groupe, sans lancer Assistantauto ni une commande
+   * une seconde fois. Le réglage reste désactivé tant que le propriétaire ne
+   * lance pas `.duo activer`.
+   */
+  async inspectPeer(input: AutomationInput): Promise<boolean> {
+    if (!input.isGroup || !isSiblingBestlaSession(this.config, input.sessionName, input.sender)) return false
+    const settings = this.db.getAutomation()
+    if (!settings.peerRepliesEnabled) return false
+    const normalizedBody = normalizedSentence(input.body)
+    if (!normalizedBody) return false
+    const rule = settings.peerReplies.find((entry) => normalizedBody === entry.trigger || normalizedBody.startsWith(`${entry.trigger} `))
+    if (!rule) return false
+    if (!this.consume(`peer:${input.chatId}:${input.sender}:${rule.id}`, 4_000)) return true
+    await sleep(650)
+    await input.reply(rule.response)
+    return true
+  }
 
   async inspect(input: AutomationInput): Promise<boolean> {
     const settings = this.db.getAutomation()
@@ -256,6 +326,7 @@ export class AutomationService {
     }
 
     if (!input.isGroup && settings.customerAi.enabled) {
+      const startedAt = Date.now()
       const pending = aiTicketForSender(this.db, input.sender)
       const ai = new AiService(this.config)
       if (!ai.isConfigured()) return false
@@ -271,21 +342,29 @@ export class AutomationService {
 
       const reaction = acknowledgementReaction(input.body, conversationStarted)
       if (reaction) {
+        await input.typing(true).catch(() => undefined)
+        await waitForAssistantAutoTarget(startedAt)
         await input.react(reaction)
+        await input.typing(false).catch(() => undefined)
         this.rememberConversation(conversationKey, 'client', input.body)
         return true
       }
 
-      // Les salutations, remerciements et petits messages sociaux partent immédiatement,
-      // sans attendre un aller-retour réseau vers Gemini.
+      // Les petits échanges utilisent une voie locale sans réseau, puis sont envoyés
+      // autour de 3 secondes pour garder un rythme humain et prévisible.
       const quick = quickHumanReply(input.body, conversationStarted, `${input.sender}:${input.body}`)
       if (quick.handled) {
+        await input.typing(true).catch(() => undefined)
         this.rememberConversation(conversationKey, 'client', input.body)
         if (quick.text) {
           const answer = sanitizeNaturalReply(quick.text, false, incomingHasEmoji)
+          await waitForAssistantAutoTarget(startedAt)
           await input.reply(answer)
           this.rememberConversation(conversationKey, 'owner', answer)
+        } else {
+          await waitForAssistantAutoTarget(startedAt)
         }
+        await input.typing(false).catch(() => undefined)
         return true
       }
 
@@ -298,7 +377,8 @@ export class AutomationService {
       const instruction = [
         settings.customerAi.instructions,
         'Écris directement le message WhatsApp à ma place.',
-        'Voix : jeune adulte francophone ouest-africain de 23 ans, poli, urbain, naturel et posé. Français conversationnel propre, sans caricature, sans imitation d’accent et sans argot forcé.',
+        'Voix : jeune adulte africain francophone de 23 ans, respectueux, posé, naturel et à l’aise sur WhatsApp. Français conversationnel propre, sans caricature, sans imitation d’accent et sans argot forcé.',
+        'Fais humain : varie les débuts de phrase, évite les réponses trop parfaites ou administratives, et réponds avec le niveau de familiarité que le contact lui-même emploie.',
         'Adapte le tutoiement, le vouvoiement, la longueur et le sérieux uniquement à ce que le contact écrit. Ne suppose jamais son origine, âge, genre, religion ou statut social.',
         'Réponds le plus souvent en 1 ou 2 phrases courtes. Évite le ton service client et les formules automatiques du type « Comment puis-je vous aider ? », « C’est bien noté » ou « Je prends note ».',
         emojiRule,
@@ -313,12 +393,13 @@ export class AutomationService {
       ].filter(Boolean).join('\n\n')
 
       try {
+        await input.typing(true).catch(() => undefined)
         const rawAnswer = await ai.complete(instruction, input.body, {
           model: ASSISTANTAUTO_FAST_MODEL,
-          maxOutputTokens: 160,
+          maxOutputTokens: 120,
           thinkingLevel: 'minimal',
-          timeoutMs: 12_000,
-          fallbackToConfiguredModel: true,
+          timeoutMs: 2_600,
+          fallbackToConfiguredModel: false,
           replyInPromptLanguage: true,
         })
         const decision = parseCustomerAiDecision(rawAnswer)
@@ -343,11 +424,28 @@ export class AutomationService {
           await this.db.addTicket(ticket)
         }
 
+        await waitForAssistantAutoTarget(startedAt)
         await input.reply(answer)
+        await input.typing(false).catch(() => undefined)
         this.rememberConversation(conversationKey, 'owner', answer)
         return true
       } catch (error) {
-        if (!(error instanceof AiServiceError)) throw error
+        if (!(error instanceof AiServiceError)) {
+          await input.typing(false).catch(() => undefined)
+          throw error
+        }
+        // Si Gemini dépasse la fenêtre rapide, on ne laisse pas le contact attendre :
+        // une courte réponse locale contextuelle part autour de 3 secondes.
+        if (/temporairement indisponible|trop lent/i.test(error.message)) {
+          const fallback = assistantAutoTimeoutFallback(input.body, `${input.sender}:${input.body}:timeout`)
+          this.rememberConversation(conversationKey, 'client', input.body)
+          await waitForAssistantAutoTarget(startedAt)
+          await input.reply(fallback)
+          this.rememberConversation(conversationKey, 'owner', fallback)
+          await input.typing(false).catch(() => undefined)
+          return true
+        }
+        await input.typing(false).catch(() => undefined)
         return false
       }
     }

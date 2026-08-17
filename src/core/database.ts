@@ -32,6 +32,12 @@ export interface ReactionRule {
   scope: AutomationScope
 }
 
+export interface PeerReplyRule {
+  id: string
+  trigger: string
+  response: string
+}
+
 export interface AutomationSettings {
   autoRepliesEnabled: boolean
   autoReplies: AutoReplyRule[]
@@ -48,6 +54,8 @@ export interface AutomationSettings {
   }
   autoReactionsEnabled: boolean
   reactions: ReactionRule[]
+  peerRepliesEnabled: boolean
+  peerReplies: PeerReplyRule[]
   customerAi: {
     enabled: boolean
     instructions: string
@@ -132,11 +140,12 @@ export interface WarningRecord {
 }
 
 interface DatabaseSchema {
-  version: 5
+  version: 6
   global: {
     publicMode: boolean | null
     prefix: string | null
     disabledCommands: string[]
+    autoStatusView: boolean
   }
   groups: Record<string, GroupSettings>
   warnings: Record<string, Record<string, WarningRecord>>
@@ -175,6 +184,14 @@ const DEFAULT_AUTOMATION: AutomationSettings = {
   },
   autoReactionsEnabled: false,
   reactions: [],
+  peerRepliesEnabled: false,
+  peerReplies: [
+    {
+      id: 'duo-default',
+      trigger: 'taghid',
+      response: 'hide',
+    },
+  ],
   customerAi: {
     enabled: false,
     instructions: 'Réponds naturellement à ma place, comme dans une vraie conversation WhatsApp. Sois poli, chaleureux, bref, précis et varie tes formulations. Ne répète pas les salutations dans une conversation déjà commencée. N’invente jamais un prix, un délai ou une disponibilité qui ne figure pas dans les informations disponibles. Si une information importante manque, prends la demande en compte pour que je puisse reprendre personnellement.',
@@ -198,8 +215,8 @@ const DEFAULT_AUTOMATION: AutomationSettings = {
 
 function initialData(): DatabaseSchema {
   return {
-    version: 5,
-    global: { publicMode: null, prefix: null, disabledCommands: [] },
+    version: 6,
+    global: { publicMode: null, prefix: null, disabledCommands: [], autoStatusView: false },
     groups: {},
     warnings: {},
     automation: cloneAutomation(DEFAULT_AUTOMATION),
@@ -225,6 +242,7 @@ function cloneAutomation(value: AutomationSettings): AutomationSettings {
     away: { ...value.away },
     businessHours: { ...value.businessHours, days: [...value.businessHours.days] },
     reactions: value.reactions.map((rule) => ({ ...rule })),
+    peerReplies: value.peerReplies.map((rule) => ({ ...rule })),
     customerAi: { ...value.customerAi },
     faq: { ...value.faq },
     notes: { ...value.notes },
@@ -262,11 +280,12 @@ export class JsonDatabase {
       this.data = {
         ...initialData(),
         ...parsed,
-        version: 5,
+        version: 6,
         global: {
           ...initialData().global,
           ...parsed.global,
           disabledCommands: parsed.global?.disabledCommands ?? [],
+          autoStatusView: parsed.global?.autoStatusView ?? false,
         },
         groups: parsed.groups ?? {},
         warnings: parsed.warnings ?? {},
@@ -281,6 +300,8 @@ export class JsonDatabase {
           },
           autoReplies: parsed.automation?.autoReplies ?? [],
           reactions: parsed.automation?.reactions ?? [],
+          peerRepliesEnabled: parsed.automation?.peerRepliesEnabled ?? DEFAULT_AUTOMATION.peerRepliesEnabled,
+          peerReplies: parsed.automation?.peerReplies ?? DEFAULT_AUTOMATION.peerReplies.map((rule) => ({ ...rule })),
           customerAi: { ...DEFAULT_AUTOMATION.customerAi, ...parsed.automation?.customerAi },
           faq: parsed.automation?.faq ?? {},
           notes: parsed.automation?.notes ?? {},
@@ -326,6 +347,16 @@ export class JsonDatabase {
   async setPrefix(value: string): Promise<void> {
     await this.mutate((data) => {
       data.global.prefix = value
+    })
+  }
+
+  getAutoStatusView(): boolean {
+    return this.data.global.autoStatusView
+  }
+
+  async setAutoStatusView(value: boolean): Promise<void> {
+    await this.mutate((data) => {
+      data.global.autoStatusView = value
     })
   }
 
