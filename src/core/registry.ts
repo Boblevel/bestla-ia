@@ -18,6 +18,8 @@ const VALID_CATEGORIES = new Set<CommandCategory>([
   'Média',
   'Audio & Vidéo',
   'Documents & Création',
+  'Créateur de texte',
+  'Utilisateur',
   'Automatisation',
   'Budget',
   'Entreprise',
