@@ -86,7 +86,7 @@
   "test/registry.test.ts": "c61beb351ba4f6f1d794eca8c80af4ca0fbafc551a2e8e76940f13858a9d5b65",
   "test/safe-fetch.test.ts": "c9b533dbc13a3441779e16e43e35dfc21c8eb21d409d6487f659a6efa415d9d9",
   "test/simple-pdf.test.ts": "880ca4df910ca748e2e59f4e31079fb0ce7d5cc7b5bc705bed790363b05718f2",
-  "test/social-downloader.test.ts": "1eff6451924b34997acc37869e05f441208fb31c481e02ac9d3ef168b6eb95b8",
+  "test/social-downloader.test.ts": "527be0373b73d70a1176f9be6f1e47a97d8dbc4cef6187865feb8d54ebba003a",
   "test/status-viewer.test.ts": "48356f2b85a60862b73160c2868b02eff0d3f2da197366037a010062dc6855ab",
   "test/text.test.ts": "e9d11372ff2c34322b2edd67584c71820dc0b903f317c29706e90f2c78b762f7",
   "test/tts.test.ts": "b3846dbbb40ab1a8e77ff524179f40c8d8e7265d73ce8972d0fb1b54b9ef6d5d",
