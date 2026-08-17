@@ -6,7 +6,7 @@ import { registerBuiltInCommands } from '../src/plugins/index.js'
 test('enregistre un catalogue étendu de commandes françaises sans anciens noms anglais', () => {
   const registry = new CommandRegistry()
   registerBuiltInCommands(registry)
-  assert.ok(registry.list().length >= 130)
+  assert.ok(registry.list().length >= 160)
   for (const oldName of ['ping', 'uptime', 'owner', 'kick', 'add', 'open', 'close', 'warn', 'sticker']) {
     assert.equal(registry.get(oldName), undefined, oldName)
   }
@@ -58,7 +58,43 @@ test('enregistre un catalogue étendu de commandes françaises sans anciens noms
     'acheterdigital',
     'produitdigital',
     'livrerdigital',
+    '3d',
+    'angel',
+    'avenger',
+    'blub',
+    'bpink',
+    'cat',
+    'glitch',
+    'glitter',
+    'graffiti',
+    'hacker',
+    'light',
+    'marvel',
+    'neon',
+    'sci',
+    'sign',
+    'tattoo',
+    'watercolor',
+    'fullpp',
+    'gjid',
+    'jid',
+    'left',
+    'call',
+    'caption',
+    'clear',
+    'contacts',
+    'delete',
+    'dlt',
+    'doc',
+    'online',
+    'poll',
+    'read',
+    'scstatus',
+    'setstatus',
+    'status',
+    'vv',
   ]) {
     assert.ok(registry.get(frenchName), frenchName)
   }
+  for (const alias of ['block', 'unblock', 'pp']) assert.ok(registry.get(alias), alias)
 })
