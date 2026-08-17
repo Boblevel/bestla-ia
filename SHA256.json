@@ -61,7 +61,7 @@
   "src/plugins/media.ts": "a70f0b34da266df2d18954634b8b0e59273cc3b39cd294098a64aa01981dc2af",
   "src/plugins/moderation.ts": "f3c7e125d915119638aee40af68ef56f3e947b20a1efe1b8ed81f24c255ec712",
   "src/plugins/owner.ts": "4f62353a3f08baaac5da09e75a443f4c8f2395640b5d5b483af7c43ee9fdadba",
-  "src/plugins/social-media.ts": "72d862ea95b7b23b4df27684e58698014f7eb85c03d1e5be00fe8ec40e8375be",
+  "src/plugins/social-media.ts": "02bf40b08610d6b435fded84ebd36b3e7f49d464d0c2aab6df181ef018f593ca",
   "src/plugins/tts.ts": "342f29632ee760977c32d2a25c207ca0eb79eb440bb3948ea51355319b50fb45",
   "src/plugins/whatsapp.ts": "430b1620160e11f408553594b0b2e590347b5a5cb3280ce98e48eabacdf6aafb",
   "src/types.ts": "330cd31232d05c220c38edccd05ab99d3260b84742f0f6a4a149d137d4e218c4",
