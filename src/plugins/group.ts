@@ -84,8 +84,7 @@ export const groupCommands: BotCommand[] = [
     },
   },
   {
-    name: 'taghid',
-    aliases: ['hidetag', 'mentioncachee'],
+    name: 'mentioncachee',
     description: 'Mentionne discrètement tous les membres sans afficher la liste des @numéros.',
     usage: '[message]',
     category: 'Groupe',

@@ -24,7 +24,7 @@ async function replyTtsError(reply: (text: string) => Promise<unknown>, error: u
 export const ttsCommands: BotCommand[] = [
   {
     name: 'vocal',
-    aliases: ['tts', 'textevoix', 'vocale'],
+    aliases: ['textevoix', 'vocale'],
     description: 'Transforme gratuitement un texte en note vocale naturelle.',
     usage: '<texte>',
     category: 'Audio & Vidéo',

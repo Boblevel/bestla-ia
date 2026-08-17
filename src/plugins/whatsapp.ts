@@ -7,7 +7,7 @@ import { jidToMention, phoneToJid } from '../utils/jid.js'
 import { safeFetchBuffer } from '../utils/safe-fetch.js'
 import { pendingStatusCount, readRememberedStatuses } from '../core/status-viewer.js'
 import { downloadMedia, findMedia } from '../utils/message.js'
-import { messageText } from '../utils/text.js'
+import { messageText, messageType } from '../utils/text.js'
 
 function safeContactName(value: string): string {
   return value.trim().replace(/[\r\n;:]/g, ' ').slice(0, 60) || 'Contact Bestla'
@@ -139,7 +139,7 @@ async function publishStatus(ctx: CommandContext, textOverride?: string): Promis
   }
   const text = (textOverride ?? ctx.argText).trim().slice(0, 700)
   if (!text) {
-    await ctx.reply(`Écris un texte ou réponds à une image/vidéo avec ${ctx.prefix}setstatus.`)
+    await ctx.reply(`Écris un texte ou réponds à une image/vidéo avec ${ctx.prefix}publierstatut.`)
     return
   }
   await ctx.sock.sendMessage('status@broadcast', { text }, { statusJidList: audience, broadcast: true })
@@ -291,7 +291,6 @@ export const whatsappCommands: BotCommand[] = [
   },
   {
     name: 'confidentialite',
-    aliases: ['privacywa'],
     description: 'Affiche les réglages de confidentialité visibles par Baileys.',
     category: 'WhatsApp',
     ownerOnly: true,
@@ -304,7 +303,7 @@ export const whatsappCommands: BotCommand[] = [
     },
   },
   {
-    name: 'call',
+    name: 'appel',
     description: 'Affiche le comportement des appels WhatsApp entrants du numéro Bestla.',
     category: 'WhatsApp',
     ownerOnly: true,
@@ -314,7 +313,7 @@ Bestla ne lance pas d’appel sortant : cette fonction n’est pas exposée de f
     },
   },
   {
-    name: 'caption',
+    name: 'legende',
     description: 'Réenvoie une image ou une vidéo avec une nouvelle légende.',
     usage: '<nouvelle légende> (en réponse à un média)',
     category: 'WhatsApp',
@@ -326,11 +325,11 @@ Bestla ne lance pas d’appel sortant : cette fonction n’est pas exposée de f
       const caption = ctx.argText.trim().slice(0, 1_024)
       if (media.type === 'image') return void (await ctx.send({ image: media.buffer, caption }))
       if (media.type === 'video') return void (await ctx.send({ video: media.buffer, mimetype: media.mimetype, caption }))
-      await ctx.reply('CAPTION accepte uniquement une image ou une vidéo.')
+      await ctx.reply('La commande légende accepte uniquement une image ou une vidéo.')
     },
   },
   {
-    name: 'clear',
+    name: 'effacer',
     description: 'Supprime le message auquel tu réponds puis efface la commande quand WhatsApp l’autorise.',
     category: 'WhatsApp',
     ownerOnly: true,
@@ -357,7 +356,7 @@ ${jids.map(jidToMention).join('\n')}`, jids)
     },
   },
   {
-    name: 'delete',
+    name: 'supprimer',
     description: 'Supprime le message auquel tu réponds lorsque WhatsApp l’autorise.',
     category: 'WhatsApp',
     ownerOnly: true,
@@ -366,16 +365,7 @@ ${jids.map(jidToMention).join('\n')}`, jids)
     },
   },
   {
-    name: 'dlt',
-    description: 'Version courte de DELETE pour supprimer le message cité.',
-    category: 'WhatsApp',
-    ownerOnly: true,
-    async execute(ctx) {
-      if (await deleteQuotedMessage(ctx)) await ctx.react('✅')
-    },
-  },
-  {
-    name: 'doc',
+    name: 'document',
     description: 'Réenvoie le média cité comme document WhatsApp.',
     usage: '(en réponse à un média)',
     category: 'WhatsApp',
@@ -388,7 +378,7 @@ ${jids.map(jidToMention).join('\n')}`, jids)
     },
   },
   {
-    name: 'online',
+    name: 'enligne',
     description: 'Passe immédiatement le numéro Bestla en présence en ligne.',
     category: 'WhatsApp',
     ownerOnly: true,
@@ -398,7 +388,7 @@ ${jids.map(jidToMention).join('\n')}`, jids)
     },
   },
   {
-    name: 'poll',
+    name: 'sondagewhatsapp',
     description: 'Crée un sondage WhatsApp natif.',
     usage: '<question> | <choix 1> | <choix 2> [| choix 3...]',
     category: 'WhatsApp',
@@ -406,12 +396,12 @@ ${jids.map(jidToMention).join('\n')}`, jids)
     async execute(ctx) {
       const parts = ctx.argText.split('|').map((part) => part.trim()).filter(Boolean)
       const question = parts.shift()
-      if (!question || parts.length < 2) return void (await ctx.reply(`Utilisation : ${ctx.prefix}poll Ton choix ? | Oui | Non`))
+      if (!question || parts.length < 2) return void (await ctx.reply(`Utilisation : ${ctx.prefix}sondagewhatsapp Ton choix ? | Oui | Non`))
       await ctx.send({ poll: { name: question.slice(0, 250), values: parts.slice(0, 12).map((value) => value.slice(0, 100)), selectableCount: 1 } })
     },
   },
   {
-    name: 'read',
+    name: 'lire',
     description: 'Marque le message de commande comme lu.',
     category: 'WhatsApp',
     ownerOnly: true,
@@ -421,7 +411,7 @@ ${jids.map(jidToMention).join('\n')}`, jids)
     },
   },
   {
-    name: 'scstatus',
+    name: 'programmerstatut',
     description: 'Programme un statut WhatsApp texte, image ou vidéo, avec liste et suppression.',
     usage: '10min | texte, ou 10min en réponse à un média ; liste ; supprimer <id>',
     category: 'WhatsApp',
@@ -429,7 +419,7 @@ ${jids.map(jidToMention).join('\n')}`, jids)
     cooldownSeconds: 4,
     async execute(ctx) {
       const first = ctx.args[0]?.toLowerCase()
-      if (first === 'liste' || first === 'list') {
+      if (first === 'liste') {
         const jobs = ctx.db
           .listSchedules()
           .filter((job) => ['en_attente', 'en_cours'].includes(job.status) && parseScheduledStatus(job.message))
@@ -443,9 +433,9 @@ ${jids.map(jidToMention).join('\n')}`, jids)
         return
       }
 
-      if (first === 'supprimer' || first === 'delete') {
+      if (first === 'supprimer') {
         const id = ctx.args[1]
-        if (!id) return void (await ctx.reply(`Utilisation : ${ctx.prefix}scstatus supprimer identifiant`))
+        if (!id) return void (await ctx.reply(`Utilisation : ${ctx.prefix}programmerstatut supprimer identifiant`))
         const job = ctx.db.listSchedules().find((entry) => entry.id === id && parseScheduledStatus(entry.message))
         if (!job) return void (await ctx.reply('Statut programmé introuvable.'))
         const payload = parseScheduledStatus(job.message)
@@ -461,9 +451,9 @@ ${jids.map(jidToMention).join('\n')}`, jids)
       const schedule = parseStatusSchedule(specification)
       if (!schedule) {
         return void (await ctx.reply(
-          `Formats : ${ctx.prefix}scstatus 10min | Mon statut\n` +
-          `${ctx.prefix}scstatus quotidien 08:00 | Bonjour\n` +
-          `ou réponds à une image/vidéo/texte avec ${ctx.prefix}scstatus 2h.`,
+          `Formats : ${ctx.prefix}programmerstatut 10min | Mon statut\n` +
+          `${ctx.prefix}programmerstatut quotidien 08:00 | Bonjour\n` +
+          `ou réponds à une image/vidéo/texte avec ${ctx.prefix}programmerstatut 2h.`,
         ))
       }
 
@@ -476,7 +466,7 @@ ${jids.map(jidToMention).join('\n')}`, jids)
 
       if (mediaSource) {
         const media = await downloadMedia(mediaSource, ctx.config.maxMediaBytes, ctx.sock)
-        if (media.type !== 'image' && media.type !== 'video') return void (await ctx.reply('SCSTATUS accepte un statut texte, image ou vidéo.'))
+        if (media.type !== 'image' && media.type !== 'video') return void (await ctx.reply('La programmation de statut accepte un texte, une image ou une vidéo.'))
         const directory = path.join(ctx.config.dataDir, 'scheduled-status')
         await mkdir(directory, { recursive: true })
         const extension = fileExtension(media.mimetype)
@@ -517,7 +507,7 @@ ${jids.map(jidToMention).join('\n')}`, jids)
     },
   },
   {
-    name: 'setstatus',
+    name: 'publierstatut',
     description: 'Publie un statut WhatsApp texte, image ou vidéo pour les personnes de la discussion actuelle.',
     usage: '[texte] (ou en réponse à une image/vidéo)',
     category: 'WhatsApp',
@@ -528,7 +518,7 @@ ${jids.map(jidToMention).join('\n')}`, jids)
     },
   },
   {
-    name: 'status',
+    name: 'statuts',
     description: 'Affiche le panneau des fonctions de statuts WhatsApp.',
     category: 'WhatsApp',
     async execute(ctx) {
@@ -536,32 +526,70 @@ ${jids.map(jidToMention).join('\n')}`, jids)
 
 ${ctx.prefix}lirestatuts
 ${ctx.prefix}autostatuts activer|desactiver|statut
-${ctx.prefix}setstatus <texte>
-${ctx.prefix}setstatus (en réponse à une image/vidéo)
-${ctx.prefix}scstatus
+${ctx.prefix}publierstatut <texte>
+${ctx.prefix}publierstatut (en réponse à une image/vidéo)
+${ctx.prefix}programmerstatut
 
 Statuts mémorisés en attente : *${pendingStatusCount(ctx.sock)}*.`)
     },
   },
   {
-    name: 'vv',
-    description: 'Récupère une image/vidéo vue unique ou un média dont l’URL WhatsApp a expiré, si WhatsApp peut encore le réenvoyer.',
+    name: 'recuperermedia',
+    description: 'Récupère une photo, une vidéo ou un audio en vue unique ou expiré si WhatsApp peut encore le réenvoyer.',
     usage: '(en réponse au média)',
     category: 'WhatsApp',
     ownerOnly: true,
     cooldownSeconds: 8,
     async execute(ctx) {
       const source = selectedMediaMessage(ctx)
-      if (!source) return void (await ctx.reply(`Réponds à la photo ou vidéo avec ${ctx.prefix}vv.`))
+      if (!source) return void (await ctx.reply(`Réponds à la photo, vidéo ou audio avec ${ctx.prefix}recuperermedia.`))
       const kind = findMedia(source)?.type
-      if (kind !== 'image' && kind !== 'video') return void (await ctx.reply('VV accepte uniquement les photos et vidéos.'))
+      if (kind !== 'image' && kind !== 'video' && kind !== 'audio') return void (await ctx.reply('Cette commande accepte uniquement les photos, vidéos et audios.'))
       try {
         const media = await downloadMedia(source, ctx.config.maxMediaBytes, ctx.sock)
-        if (media.type === 'image') await ctx.send({ image: media.buffer, caption: 'Média récupéré par VV.' })
-        else await ctx.send({ video: media.buffer, mimetype: media.mimetype, caption: 'Média récupéré par VV.' })
+        if (media.type === 'image') await ctx.send({ image: media.buffer, caption: 'Média récupéré par Bestla iA.' })
+        else if (media.type === 'video') await ctx.send({ video: media.buffer, mimetype: media.mimetype, caption: 'Média récupéré par Bestla iA.' })
+        else await ctx.send({ audio: media.buffer, mimetype: media.mimetype, ptt: false })
       } catch {
         await ctx.reply('Le média n’est plus récupérable. Bestla a demandé une réémission à WhatsApp, mais aucun appareil lié n’a pu fournir le fichier.')
       }
+    },
+  },
+  {
+    name: 'copiertexte',
+    description: 'Copie le texte ou la légende du message auquel tu réponds.',
+    usage: '(en réponse à un message texte, une image ou une vidéo avec légende)',
+    category: 'WhatsApp',
+    cooldownSeconds: 2,
+    async execute(ctx) {
+      const quoted = ctx.quotedMessage()
+      if (!quoted) return void (await ctx.reply('Réponds au message dont tu veux copier le texte.'))
+      const text = messageText(quoted)
+      if (!text) return void (await ctx.reply('Ce message ne contient aucun texte ou légende récupérable.'))
+      await ctx.reply(text.slice(0, 4_000))
+    },
+  },
+  {
+    name: 'infosmessage',
+    description: 'Affiche les informations techniques utiles du message cité sans modifier la discussion.',
+    usage: '(en réponse à un message)',
+    category: 'WhatsApp',
+    cooldownSeconds: 3,
+    async execute(ctx) {
+      const quoted = ctx.quotedMessage()
+      if (!quoted) return void (await ctx.reply('Réponds au message à analyser.'))
+      const media = findMedia(quoted)
+      const sender = quoted.key.participant ?? quoted.key.remoteJid ?? 'inconnu'
+      const timestamp = quoted.messageTimestamp ? Number(quoted.messageTimestamp) : 0
+      const date = timestamp > 0 ? new Date(timestamp * 1000).toLocaleString('fr-FR', { timeZone: ctx.config.timezone }) : 'inconnue'
+      await ctx.reply([
+        '*INFORMATIONS DU MESSAGE*',
+        `Type : *${messageType(quoted)}*`,
+        `Expéditeur : *${sender}*`,
+        `Identifiant : *${quoted.key.id ?? 'inconnu'}*`,
+        `Date : *${date}*`,
+        media ? `Média : *${media.type}* (${media.mimetype})` : 'Média : *non*',
+      ].join('\n'))
     },
   },
 

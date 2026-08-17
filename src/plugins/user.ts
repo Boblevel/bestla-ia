@@ -10,7 +10,7 @@ function selectedImage(ctx: CommandContext) {
 
 export const userCommands: BotCommand[] = [
   {
-    name: 'fullpp',
+    name: 'changerphotoprofil',
     description: 'Met à jour la photo de profil du numéro Bestla avec l’image à laquelle tu réponds.',
     usage: '(en réponse à une image)',
     category: 'Utilisateur',
@@ -18,7 +18,7 @@ export const userCommands: BotCommand[] = [
     cooldownSeconds: 10,
     async execute(ctx) {
       const source = selectedImage(ctx)
-      if (!source) return void (await ctx.reply(`Réponds à une image avec ${ctx.prefix}fullpp.`))
+      if (!source) return void (await ctx.reply(`Réponds à une image avec ${ctx.prefix}changerphotoprofil.`))
       const media = await downloadMedia(source, ctx.config.maxMediaBytes, ctx.sock)
       const me = ctx.sock.user?.id
       if (!me) return void (await ctx.reply('Le compte WhatsApp n’est pas encore complètement connecté.'))
@@ -27,7 +27,7 @@ export const userCommands: BotCommand[] = [
     },
   },
   {
-    name: 'jid',
+    name: 'identifiantcontact',
     description: 'Affiche le JID WhatsApp de la personne ciblée ou de l’expéditeur.',
     usage: '[@personne ou en réponse à un message]',
     category: 'Utilisateur',
@@ -37,7 +37,7 @@ export const userCommands: BotCommand[] = [
     },
   },
   {
-    name: 'gjid',
+    name: 'identifiantgroupe',
     description: 'Affiche le JID du groupe actuel.',
     category: 'Utilisateur',
     groupOnly: true,
@@ -46,7 +46,7 @@ export const userCommands: BotCommand[] = [
     },
   },
   {
-    name: 'left',
+    name: 'quittergroupe',
     description: 'Fait quitter le groupe au numéro Bestla.',
     category: 'Utilisateur',
     ownerOnly: true,

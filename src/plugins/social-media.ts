@@ -45,7 +45,7 @@ async function replyDownloadError(ctx: CommandContext, error: unknown): Promise<
 export const socialMediaCommands: BotCommand[] = [
   {
     name: 'telecharger',
-    aliases: ['dl', 'download', 'telechargervideo'],
+    aliases: ['telechargervideo'],
     description: 'Télécharge une vidéo publique depuis un lien compatible (YouTube, Instagram, Facebook, TikTok et autres sites pris en charge).',
     usage: '<lien> [240p|360p|480p|720p|1080p|1440p|2160p|best]',
     category: 'Audio & Vidéo',

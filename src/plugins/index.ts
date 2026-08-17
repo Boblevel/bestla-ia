@@ -1,5 +1,6 @@
 import type { CommandRegistry } from '../core/registry.js'
 import { aiCommands } from './ai.js'
+import { apkCommands } from './apk.js'
 import { automationCommands } from './automation.js'
 import { advancedMediaCommands } from './advanced-media.js'
 import { budgetCommands } from './budget.js'
@@ -21,6 +22,7 @@ import { userCommands } from './user.js'
 export function registerBuiltInCommands(registry: CommandRegistry): void {
   ;[
     ...generalCommands,
+    ...apkCommands,
     ...aiCommands,
     ...groupCommands,
     ...moderationCommands,

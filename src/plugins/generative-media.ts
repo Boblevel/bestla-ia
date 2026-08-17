@@ -155,7 +155,7 @@ export const generativeMediaCommands: BotCommand[] = [
   },
   {
     name: 'modifiervideo',
-    aliases: ['editervideo', 'retouchevideo', 'videoedit'],
+    aliases: ['editervideo', 'retouchevideo'],
     description: 'Modifie une vidéo selon une instruction avec l’IA multimodale.',
     usage: '<modification> en réponse à une vidéo',
     category: 'Audio & Vidéo',

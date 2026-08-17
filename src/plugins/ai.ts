@@ -49,7 +49,7 @@ export const aiCommands: BotCommand[] = [
   },
   {
     name: 'demander',
-    aliases: ['gemini', 'prompt', 'ask'],
+    aliases: ['gemini'],
     description: 'Envoie un prompt libre à l’assistant IA et renvoie une réponse complète.',
     usage: '<prompt>',
     category: 'IA',
@@ -136,7 +136,7 @@ export const aiCommands: BotCommand[] = [
   },
   {
     name: 'reponsepro',
-    aliases: ['reponseclient', 'replypro'],
+    aliases: ['reponseclient'],
     description: 'Rédige une réponse professionnelle et polie à un message client.',
     usage: '<message> ou répondre à un message',
     category: 'IA',

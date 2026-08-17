@@ -3,39 +3,39 @@ import type { BotCommand } from '../types.js'
 
 interface TextStyle {
   label: string
-  background: [string, string]
+  background: [string, string, string]
   foreground: string
   accent: string
-  shadow?: string
-  stroke?: string
-  pattern?: 'grid' | 'stars' | 'stripes' | 'dots'
+  accent2: string
+  shadow: string
+  pattern: 'grid' | 'stars' | 'stripes' | 'dots' | 'none'
 }
 
 const STYLES: Record<string, TextStyle> = {
-  '3d': { label: '3D', background: ['#161A30', '#313866'], foreground: '#F0ECE5', accent: '#F0B86E', shadow: '#000000', stroke: '#B6BBC4', pattern: 'grid' },
-  angel: { label: 'ANGEL', background: ['#E8F6FF', '#B8DFF7'], foreground: '#FFFFFF', accent: '#79A7D3', shadow: '#6F8FAF', stroke: '#DDF3FF', pattern: 'stars' },
-  avenger: { label: 'AVENGER', background: ['#101820', '#263B50'], foreground: '#F4F4F4', accent: '#D72638', shadow: '#000000', stroke: '#7E8A97', pattern: 'stripes' },
-  blub: { label: 'BLUB', background: ['#001F3F', '#0074D9'], foreground: '#EAF6FF', accent: '#7FDBFF', shadow: '#00111F', stroke: '#39CCCC', pattern: 'dots' },
-  bpink: { label: 'BPINK', background: ['#12040F', '#40112E'], foreground: '#FFE4F4', accent: '#FF69B4', shadow: '#000000', stroke: '#FFB7DB', pattern: 'stars' },
-  cat: { label: 'CAT', background: ['#2D1E2F', '#6B4F4F'], foreground: '#FFF5E6', accent: '#F6BD60', shadow: '#1D1010', stroke: '#F7EDE2', pattern: 'dots' },
-  glitch: { label: 'GLITCH', background: ['#090909', '#181818'], foreground: '#F8F8F8', accent: '#00F5D4', shadow: '#FF0054', stroke: '#9B5DE5', pattern: 'grid' },
-  glitter: { label: 'GLITTER', background: ['#321450', '#7B2CBF'], foreground: '#FFF4C2', accent: '#FFD166', shadow: '#2B0A3D', stroke: '#F15BB5', pattern: 'stars' },
-  graffiti: { label: 'GRAFFITI', background: ['#1F2421', '#3A4A3F'], foreground: '#FFF7D6', accent: '#FF9F1C', shadow: '#111111', stroke: '#2EC4B6', pattern: 'stripes' },
-  hacker: { label: 'HACKER', background: ['#020A02', '#061B06'], foreground: '#B7FFB7', accent: '#00FF41', shadow: '#001B05', stroke: '#39FF14', pattern: 'grid' },
-  light: { label: 'LIGHT', background: ['#171717', '#303030'], foreground: '#FFFFFF', accent: '#FFF275', shadow: '#000000', stroke: '#FFE66D', pattern: 'dots' },
-  marvel: { label: 'MARVEL', background: ['#3B0A0A', '#8B1111'], foreground: '#FFFFFF', accent: '#E62429', shadow: '#170000', stroke: '#FFFFFF', pattern: 'stripes' },
-  neon: { label: 'NEON', background: ['#080713', '#15102A'], foreground: '#EFFFFF', accent: '#00F5FF', shadow: '#FF00E5', stroke: '#8A2BE2', pattern: 'grid' },
-  sci: { label: 'SCI-FI', background: ['#071923', '#0C3146'], foreground: '#D8F3FF', accent: '#58D3F7', shadow: '#00121B', stroke: '#9CEBFF', pattern: 'grid' },
-  sign: { label: 'SIGN', background: ['#442B1A', '#815B3A'], foreground: '#FFF1CF', accent: '#E8B86D', shadow: '#25160D', stroke: '#F4D58D', pattern: 'stripes' },
-  tattoo: { label: 'TATTOO', background: ['#171717', '#2B2B2B'], foreground: '#F0E6D2', accent: '#B38B59', shadow: '#000000', stroke: '#D6C6A8', pattern: 'dots' },
-  watercolor: { label: 'WATERCOLOR', background: ['#D8F3DC', '#BDE0FE'], foreground: '#3A3A5A', accent: '#FFAFCC', shadow: '#FFFFFF', stroke: '#CDB4DB', pattern: 'stars' },
+  '3d': { label: '3D', background: ['#0A1020', '#182545', '#070A12'], foreground: '#FFF7E8', accent: '#FFB347', accent2: '#FF6B35', shadow: '#000000', pattern: 'grid' },
+  ange: { label: 'ANGE', background: ['#EAF8FF', '#BFDFFF', '#FDFEFF'], foreground: '#FFFFFF', accent: '#78B7E8', accent2: '#F8D778', shadow: '#547A9B', pattern: 'stars' },
+  vengeur: { label: 'VENGEUR', background: ['#070B12', '#243B55', '#090B10'], foreground: '#F8FAFC', accent: '#E52B3D', accent2: '#5CC8FF', shadow: '#000000', pattern: 'stripes' },
+  bulle: { label: 'BULLE', background: ['#061D3A', '#0575E6', '#021B79'], foreground: '#F2FBFF', accent: '#64E9FF', accent2: '#B6FFFA', shadow: '#001024', pattern: 'dots' },
+  rose: { label: 'ROSE', background: ['#120510', '#48143A', '#16040F'], foreground: '#FFF2FA', accent: '#FF4FB3', accent2: '#FFB7DE', shadow: '#000000', pattern: 'stars' },
+  chat: { label: 'CHAT', background: ['#1C1624', '#5B425F', '#211827'], foreground: '#FFF6E8', accent: '#FFBE72', accent2: '#FCE2C0', shadow: '#120C15', pattern: 'dots' },
+  parasite: { label: 'PARASITE', background: ['#030303', '#151515', '#050505'], foreground: '#F8F8F8', accent: '#00F5D4', accent2: '#FF0054', shadow: '#000000', pattern: 'grid' },
+  paillettes: { label: 'PAILLETTES', background: ['#25103E', '#6A1B9A', '#180B2B'], foreground: '#FFF7D6', accent: '#FFD166', accent2: '#FF70D6', shadow: '#190725', pattern: 'stars' },
+  graffiti: { label: 'GRAFFITI', background: ['#171D1B', '#34443D', '#101412'], foreground: '#FFF7D6', accent: '#FF9F1C', accent2: '#2EC4B6', shadow: '#050505', pattern: 'stripes' },
+  pirate: { label: 'PIRATE', background: ['#010601', '#061A08', '#010601'], foreground: '#C9FFC9', accent: '#00FF41', accent2: '#7DFF97', shadow: '#001003', pattern: 'grid' },
+  lumiere: { label: 'LUMIERE', background: ['#0D0D0D', '#272727', '#101010'], foreground: '#FFFFFF', accent: '#FFF275', accent2: '#FFB703', shadow: '#000000', pattern: 'dots' },
+  superheros: { label: 'SUPER-HEROS', background: ['#320606', '#9D111C', '#130306'], foreground: '#FFFFFF', accent: '#FF2D37', accent2: '#FFD166', shadow: '#170000', pattern: 'stripes' },
+  neon: { label: 'NEON', background: ['#05040C', '#17102E', '#05040B'], foreground: '#F5FFFF', accent: '#00F5FF', accent2: '#FF00E5', shadow: '#000000', pattern: 'grid' },
+  sciencefiction: { label: 'SCIENCE-FICTION', background: ['#03141D', '#0A3B55', '#020A10'], foreground: '#DFF8FF', accent: '#58D3F7', accent2: '#8DFFDB', shadow: '#00121B', pattern: 'grid' },
+  enseigne: { label: 'ENSEIGNE', background: ['#352316', '#805B38', '#2A1A0F'], foreground: '#FFF1CF', accent: '#E8B86D', accent2: '#F9DCA7', shadow: '#25160D', pattern: 'stripes' },
+  tatouage: { label: 'TATOUAGE', background: ['#111111', '#292929', '#0A0A0A'], foreground: '#EFE4CF', accent: '#B38B59', accent2: '#E4D0AD', shadow: '#000000', pattern: 'none' },
+  aquarelle: { label: 'AQUARELLE', background: ['#F7FBF8', '#DDEFFD', '#FFF6FA'], foreground: '#33344A', accent: '#FF8FB8', accent2: '#76B8E8', shadow: '#FFFFFF', pattern: 'none' },
 }
 
 function escapeXml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;')
 }
 
-function splitText(value: string, maxChars = 18): string[] {
+function splitText(value: string, maxChars = 17): string[] {
   const words = value.trim().replace(/\s+/g, ' ').split(' ')
   const lines: string[] = []
   let current = ''
@@ -53,41 +53,111 @@ function splitText(value: string, maxChars = 18): string[] {
 
 function patternSvg(pattern: TextStyle['pattern'], accent: string): string {
   if (pattern === 'grid') {
-    return `<g opacity="0.11" stroke="${accent}" stroke-width="2">${Array.from({ length: 13 }, (_, i) => `<path d="M0 ${i * 90}H1080M${i * 90} 0V1080"/>`).join('')}</g>`
+    return `<g opacity="0.10" stroke="${accent}" stroke-width="2">${Array.from({ length: 18 }, (_, i) => `<path d="M0 ${i * 75}H1280M${i * 75} 0V1280"/>`).join('')}</g>`
   }
   if (pattern === 'stars') {
-    return `<g fill="${accent}" opacity="0.28">${Array.from({ length: 40 }, (_, i) => `<circle cx="${35 + ((i * 193) % 1010)}" cy="${30 + ((i * 347) % 1020)}" r="${2 + (i % 5)}"/>`).join('')}</g>`
+    return `<g fill="${accent}" opacity="0.34">${Array.from({ length: 70 }, (_, i) => `<circle cx="${30 + ((i * 193) % 1220)}" cy="${25 + ((i * 347) % 1230)}" r="${2 + (i % 6)}"/>`).join('')}</g>`
   }
   if (pattern === 'stripes') {
-    return `<g opacity="0.09" stroke="${accent}" stroke-width="22">${Array.from({ length: 15 }, (_, i) => `<path d="M${-300 + i * 110} 1080L${250 + i * 110} 0"/>`).join('')}</g>`
+    return `<g opacity="0.10" stroke="${accent}" stroke-width="26">${Array.from({ length: 18 }, (_, i) => `<path d="M${-400 + i * 120} 1280L${220 + i * 120} 0"/>`).join('')}</g>`
   }
-  return `<g fill="${accent}" opacity="0.12">${Array.from({ length: 70 }, (_, i) => `<circle cx="${20 + ((i * 137) % 1040)}" cy="${20 + ((i * 223) % 1040)}" r="${4 + (i % 8)}"/>`).join('')}</g>`
+  if (pattern === 'dots') {
+    return `<g fill="${accent}" opacity="0.14">${Array.from({ length: 100 }, (_, i) => `<circle cx="${20 + ((i * 137) % 1240)}" cy="${20 + ((i * 223) % 1240)}" r="${4 + (i % 9)}"/>`).join('')}</g>`
+  }
+  return ''
+}
+
+function decorationSvg(name: string, style: TextStyle): string {
+  const a = style.accent
+  const b = style.accent2
+  if (name === 'ange') {
+    return `<g fill="none" stroke="${a}" opacity="0.62" stroke-width="18"><ellipse cx="640" cy="340" rx="170" ry="42"/><path d="M430 510C260 420 125 470 90 650c140-80 245-45 330 70M850 510c170-90 305-40 340 140-140-80-245-45-330 70"/></g>`
+  }
+  if (name === 'bulle') {
+    return `<g fill="none" stroke="${b}" opacity="0.48">${Array.from({ length: 16 }, (_, i) => `<circle cx="${90 + ((i * 211) % 1100)}" cy="${100 + ((i * 163) % 1050)}" r="${24 + (i % 5) * 18}" stroke-width="${4 + (i % 3) * 2}"/>`).join('')}</g>`
+  }
+  if (name === 'chat') {
+    return `<g fill="${a}" opacity="0.20"><path d="M440 420L500 255l85 145zM695 400l85-145 60 165z"/></g><g stroke="${b}" opacity="0.55" stroke-width="8"><path d="M405 690L170 640M405 725L150 725M875 690l235-50M875 725l255 0"/></g>`
+  }
+  if (name === 'parasite') {
+    return `<g opacity="0.50"><rect x="70" y="410" width="1140" height="10" fill="${a}"/><rect x="35" y="615" width="1210" height="8" fill="${b}"/><rect x="150" y="845" width="980" height="12" fill="${a}"/></g>`
+  }
+  if (name === 'graffiti') {
+    return `<g fill="${a}" opacity="0.28"><circle cx="130" cy="970" r="80"/><circle cx="1120" cy="270" r="95"/><path d="M160 980c120-120 210-50 300-140 80-80 160-65 255-10" fill="none" stroke="${b}" stroke-width="35" stroke-linecap="round"/></g>`
+  }
+  if (name === 'pirate') {
+    return `<g fill="${a}" opacity="0.10">${Array.from({ length: 22 }, (_, i) => `<rect x="0" y="${i * 58}" width="1280" height="2"/>`).join('')}</g><text x="90" y="150" font-family="DejaVu Sans Mono, monospace" font-size="34" fill="${a}" opacity="0.72">&gt; BESTLA_SYSTEM_READY</text>`
+  }
+  if (name === 'sciencefiction') {
+    return `<g fill="none" stroke="${a}" opacity="0.35"><circle cx="640" cy="630" r="420" stroke-width="3" stroke-dasharray="28 18"/><circle cx="640" cy="630" r="360" stroke="${b}" stroke-width="2" stroke-dasharray="9 18"/><path d="M120 230H370M910 230h250M120 1040h250M910 1040h250" stroke-width="8"/></g>`
+  }
+  if (name === 'enseigne') {
+    return `<g><rect x="95" y="300" width="1090" height="650" rx="38" fill="#000000" opacity="0.20" stroke="${a}" stroke-width="12"/><circle cx="140" cy="345" r="13" fill="${b}"/><circle cx="1140" cy="345" r="13" fill="${b}"/><circle cx="140" cy="905" r="13" fill="${b}"/><circle cx="1140" cy="905" r="13" fill="${b}"/></g>`
+  }
+  if (name === 'tatouage') {
+    return `<g fill="none" stroke="${a}" opacity="0.55" stroke-width="5"><path d="M180 640c85-190 210-250 360-150-90-40-110-170-25-250M1100 640c-85-190-210-250-360-150 90-40 110-170 25-250"/><path d="M250 875c120 85 220 80 310-10M1030 875c-120 85-220 80-310-10"/></g>`
+  }
+  if (name === 'aquarelle') {
+    return `<g opacity="0.38"><ellipse cx="330" cy="430" rx="310" ry="220" fill="${a}"/><ellipse cx="865" cy="520" rx="350" ry="260" fill="${b}"/><ellipse cx="610" cy="870" rx="420" ry="180" fill="#FFD6A5"/></g>`
+  }
+  if (name === 'superheros' || name === 'vengeur') {
+    return `<g transform="translate(640 625)" opacity="0.28"><path d="M0-430L320-250 250 180 0 420-250 180-320-250z" fill="none" stroke="${a}" stroke-width="25"/><path d="M0-330L220-205 170 120 0 300-170 120-220-205z" fill="none" stroke="${b}" stroke-width="8"/></g>`
+  }
+  return ''
+}
+
+function textLayers(name: string, style: TextStyle, lines: string[], fontSize: number, lineGap: number, startY: number): string {
+  return lines.map((line, index) => {
+    const y = Math.round(startY + index * lineGap)
+    const escaped = escapeXml(line)
+    const common = `x="640" y="${y}" text-anchor="middle" dominant-baseline="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="${fontSize}" font-weight="900" letter-spacing="4"`
+    if (name === '3d') {
+      const extrusion = Array.from({ length: 13 }, (_, depth) => `<text ${common} transform="translate(${depth * 5} ${depth * 5})" fill="${depth % 2 ? style.accent2 : style.accent}" opacity="${0.34 + depth * 0.025}">${escaped}</text>`).join('')
+      return `${extrusion}<text ${common} fill="${style.foreground}" stroke="${style.accent}" stroke-width="3" paint-order="stroke fill">${escaped}</text>`
+    }
+    if (name === 'parasite') {
+      return `<text ${common} transform="translate(-10 0)" fill="${style.accent2}" opacity="0.8">${escaped}</text><text ${common} transform="translate(10 0)" fill="${style.accent}" opacity="0.8">${escaped}</text><text ${common} fill="${style.foreground}">${escaped}</text>`
+    }
+    if (name === 'neon' || name === 'lumiere') {
+      return `<text ${common} fill="none" stroke="${style.accent2}" stroke-width="20" opacity="0.17" filter="url(#blurGlow)">${escaped}</text><text ${common} fill="${style.foreground}" stroke="${style.accent}" stroke-width="7" paint-order="stroke fill" filter="url(#softGlow)">${escaped}</text>`
+    }
+    if (name === 'graffiti') {
+      return `<text ${common} transform="skewX(-7)" fill="${style.foreground}" stroke="#101010" stroke-width="18" paint-order="stroke fill">${escaped}</text><text ${common} transform="skewX(-7)" fill="${style.foreground}" stroke="${style.accent}" stroke-width="7" paint-order="stroke fill">${escaped}</text>`
+    }
+    if (name === 'tatouage') {
+      return `<text ${common} font-family="DejaVu Serif, serif" fill="${style.foreground}" stroke="${style.accent}" stroke-width="2" paint-order="stroke fill">${escaped}</text>`
+    }
+    return `<text ${common} fill="${style.foreground}" stroke="${style.accent}" stroke-width="5" paint-order="stroke fill" filter="url(#shadow)">${escaped}</text>`
+  }).join('')
 }
 
 function textSvg(styleName: string, rawText: string): Buffer {
   const style = STYLES[styleName] ?? STYLES.neon!
   const text = rawText.trim().slice(0, 160)
   const lines = splitText(text || 'BESTLA')
-  const fontSize = Math.max(76, Math.min(156, Math.floor(760 / Math.max(...lines.map((line) => line.length), 5))))
-  const lineGap = Math.round(fontSize * 1.16)
-  const startY = 540 - ((lines.length - 1) * lineGap) / 2
-  const texts = lines.map((line, index) => {
-    const y = Math.round(startY + index * lineGap)
-    return `<text x="540" y="${y}" text-anchor="middle" dominant-baseline="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="${fontSize}" font-weight="900" letter-spacing="3" fill="${style.foreground}" stroke="${style.stroke ?? style.accent}" stroke-width="3" paint-order="stroke fill" filter="url(#shadow)">${escapeXml(line)}</text>`
-  }).join('')
+  const longest = Math.max(...lines.map((line) => line.length), 5)
+  const fontSize = Math.max(82, Math.min(178, Math.floor(980 / longest)))
+  const lineGap = Math.round(fontSize * 1.18)
+  const startY = 625 - ((lines.length - 1) * lineGap) / 2
+  const renderedText = textLayers(styleName, style, lines, fontSize, lineGap, startY)
+
   return Buffer.from(`
-  <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1080" viewBox="0 0 1080 1080">
+  <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1280" viewBox="0 0 1280 1280">
     <defs>
-      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${style.background[0]}"/><stop offset="1" stop-color="${style.background[1]}"/></linearGradient>
-      <radialGradient id="glow"><stop offset="0" stop-color="${style.accent}" stop-opacity="0.34"/><stop offset="1" stop-color="${style.accent}" stop-opacity="0"/></radialGradient>
-      <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="8" dy="12" stdDeviation="9" flood-color="${style.shadow ?? '#000000'}" flood-opacity="0.8"/></filter>
+      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${style.background[0]}"/><stop offset="0.52" stop-color="${style.background[1]}"/><stop offset="1" stop-color="${style.background[2]}"/></linearGradient>
+      <radialGradient id="glow"><stop offset="0" stop-color="${style.accent}" stop-opacity="0.32"/><stop offset="1" stop-color="${style.accent}" stop-opacity="0"/></radialGradient>
+      <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="10" dy="15" stdDeviation="11" flood-color="${style.shadow}" flood-opacity="0.82"/></filter>
+      <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      <filter id="blurGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="18"/></filter>
     </defs>
-    <rect width="1080" height="1080" rx="46" fill="url(#bg)"/>
-    <circle cx="540" cy="520" r="440" fill="url(#glow)"/>
+    <rect width="1280" height="1280" rx="58" fill="url(#bg)"/>
+    <circle cx="640" cy="620" r="520" fill="url(#glow)"/>
     ${patternSvg(style.pattern, style.accent)}
-    <rect x="55" y="55" width="970" height="970" rx="38" fill="none" stroke="${style.accent}" stroke-opacity="0.65" stroke-width="4"/>
-    ${texts}
-    <text x="540" y="965" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" font-weight="700" fill="${style.accent}" letter-spacing="6">${style.label} • BESTLA iA</text>
+    ${decorationSvg(styleName, style)}
+    <rect x="55" y="55" width="1170" height="1170" rx="48" fill="none" stroke="${style.accent}" stroke-opacity="0.60" stroke-width="5"/>
+    <rect x="75" y="75" width="1130" height="1130" rx="40" fill="none" stroke="${style.accent2}" stroke-opacity="0.25" stroke-width="2"/>
+    ${renderedText}
+    <text x="640" y="1165" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="30" font-weight="800" fill="${style.accent}" letter-spacing="6">${style.label} • BESTLA iA</text>
   </svg>`)
 }
 
@@ -95,20 +165,20 @@ function makeCommand(name: string): BotCommand {
   const label = STYLES[name]?.label ?? name.toUpperCase()
   return {
     name,
-    description: `Crée une image texte avec l’effet ${label}, sans clé API externe.`,
+    description: `Crée une image texte stylisée avec l’effet ${label}, sans clé API externe.`,
     usage: '<texte>',
     category: 'Créateur de texte',
     cooldownSeconds: 6,
     async execute(ctx) {
       const text = ctx.argText.trim()
       if (!text) return void (await ctx.reply(`Utilisation : ${ctx.prefix}${name} Ton texte`))
-      const image = await sharp(textSvg(name, text)).png().toBuffer()
+      const image = await sharp(textSvg(name, text)).png({ compressionLevel: 9 }).toBuffer()
       await ctx.send({ image, caption: `Effet *${label}* créé par Bestla iA.` })
     },
   }
 }
 
 export const textMakerCommands: BotCommand[] = [
-  '3d', 'angel', 'avenger', 'blub', 'bpink', 'cat', 'glitch', 'glitter', 'graffiti',
-  'hacker', 'light', 'marvel', 'neon', 'sci', 'sign', 'tattoo', 'watercolor',
+  '3d', 'ange', 'vengeur', 'bulle', 'rose', 'chat', 'parasite', 'paillettes', 'graffiti',
+  'pirate', 'lumiere', 'superheros', 'neon', 'sciencefiction', 'enseigne', 'tatouage', 'aquarelle',
 ].map(makeCommand)

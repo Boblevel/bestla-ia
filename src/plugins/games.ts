@@ -72,7 +72,7 @@ function normalize(value: string): string {
 export const gameCommands: BotCommand[] = [
   {
     name: 'morpion',
-    aliases: ['tictactoe'],
+    aliases: [],
     description: 'Joue au morpion avec une personne dans le chat actuel.',
     usage: 'creer @personne|jouer <1-9>|annuler',
     category: 'Jeux',

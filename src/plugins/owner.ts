@@ -69,7 +69,7 @@ Pour changer : ${ctx.prefix}prefixe !`))
   },
   {
     name: 'commande',
-    aliases: ['gerercommande', 'commandeswitch'],
+    aliases: ['gerercommande'],
     description: 'Active, désactive ou affiche l’état d’une commande.',
     usage: 'activer|desactiver|statut|liste <commande>',
     category: 'Propriétaire',
@@ -195,7 +195,7 @@ ${ctx.prefix}commande liste`))
   },
   {
     name: 'bloquercontact',
-    aliases: ['bloquer', 'block'],
+    aliases: ['bloquer'],
     description: 'Bloque un contact WhatsApp depuis une conversation privée.',
     usage: '@personne ou numéro',
     category: 'Propriétaire',
@@ -209,7 +209,7 @@ ${ctx.prefix}commande liste`))
   },
   {
     name: 'debloquercontact',
-    aliases: ['debloquer', 'unblock'],
+    aliases: ['debloquer'],
     description: 'Débloque un contact WhatsApp depuis une conversation privée.',
     usage: '@personne ou numéro',
     category: 'Propriétaire',

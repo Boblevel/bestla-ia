@@ -311,7 +311,7 @@ export const automationCommands: BotCommand[] = [
       }
       if (action === 'ajouter') {
         const pair = splitAtPipe(ctx.args.slice(1).join(' '))
-        if (!pair) return void (await ctx.reply(`Utilisation : ${ctx.prefix}duo ajouter taghid | hide`))
+        if (!pair) return void (await ctx.reply(`Utilisation : ${ctx.prefix}duo ajouter mentioncachee | cache`))
         const trigger = normalizeTrigger(pair[0]).slice(0, 120)
         const response = pair[1].trim().slice(0, 500)
         if (!trigger || !response) return void (await ctx.reply('Déclencheur ou réponse invalide.'))
