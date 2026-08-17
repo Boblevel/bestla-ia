@@ -28,6 +28,8 @@ test('enregistre un catalogue étendu de commandes françaises sans anciens noms
     'etatserveur',
     'assistant',
     'convertiraudio',
+    'vocal',
+    'voix',
     'creerpdf',
     'budget',
     'morpion',
