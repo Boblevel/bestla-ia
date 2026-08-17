@@ -15,7 +15,7 @@
     "test": "node --import tsx --test test/*.test.ts",
     "panel": "node dist/cli.js",
     "release": "bash scripts/creer-release.sh",
-    "postinstall": "bash scripts/ensure-tts.sh || echo 'Bestla TTS sera retenté automatiquement au premier usage.'"
+    "postinstall": "bash scripts/ensure-tts.sh || echo 'Bestla TTS sera retenté automatiquement au premier usage.'; bash scripts/ensure-downloader.sh || echo 'Bestla téléchargements sera retenté automatiquement au premier usage.'"
   },
   "engines": {
     "node": ">=22.0.0"

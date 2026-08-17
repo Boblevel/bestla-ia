@@ -31,9 +31,9 @@ La clé Gemini déjà présente sur une installation existante est conservée pe
 - `.assistantauto statut` : affiche son état.
 - `.assistantauto consigne <texte>` : ajoute le contexte métier souhaité.
 
-Assistantauto privilégie maintenant la vitesse : les salutations, remerciements et petits échanges courants sont traités localement et instantanément ; les autres messages utilisent `gemini-3.5-flash-lite` avec réflexion minimale, puis retombent sur le modèle Gemini configuré si nécessaire. Le style est celui d'un jeune adulte francophone ouest-africain de 23 ans, poli et naturel, sans caricature ni imitation d'accent. Le ton s'adapte uniquement aux messages visibles du contact.
+Assistantauto vise maintenant un rythme humain d'environ **3 secondes** : les petits échanges sont préparés localement, et les autres messages utilisent `gemini-3.5-flash-lite` avec réflexion minimale. Si l'appel réseau dépasse la fenêtre rapide, Bestla envoie une courte réponse locale contextuelle au lieu de laisser la personne attendre longtemps. Le réseau WhatsApp lui-même peut parfois ajouter un léger délai.
 
-Règle emoji stricte : si le contact n'utilise aucun emoji, Assistantauto n'en envoie aucun. Si le contact en utilise, la réponse peut en reprendre au maximum un lorsque cela paraît naturel. Un simple `OK` sans emoji peut rester sans réponse, comme dans une conversation humaine.
+Le style est celui d'un jeune adulte africain francophone de 23 ans, poli, posé et naturel, sans caricature ni imitation d'accent. Le ton, le tutoiement/vouvoiement et la longueur s'adaptent uniquement à la manière dont le contact écrit. Règle emoji stricte : aucun emoji si le contact n'en utilise pas ; s'il en utilise, au maximum un emoji occasionnel lorsque cela paraît naturel.
 
 ## Texte vers vocal
 
@@ -49,3 +49,53 @@ Le moteur vocal est installé automatiquement pendant `npm ci`, donc aussi lors 
 - `.voix reset` : rétablit la voix française masculine par défaut.
 
 Les préférences sont enregistrées automatiquement par utilisateur dans `data/tts-preferences.json`. Le dossier `.venv-tts/` est local au serveur et ignoré par Git. Si le moteur n'a pas pu être préparé pendant une mise à jour, la première commande `.vocal` tente de le réparer automatiquement.
+
+## Statuts WhatsApp et commandes pratiques
+
+Bestla mémorise les statuts récents reçus par chaque session WhatsApp sans les envoyer à Assistantauto. Baileys exige des clés de messages individuelles pour marquer des éléments comme lus ; Bestla conserve donc automatiquement ces clés récentes et les traite en lot.
+
+- `.lirestatuts` : marque en une fois comme vus les statuts récents mémorisés par la session actuelle.
+- `.autostatuts activer` : marque automatiquement comme vus les nouveaux statuts à leur réception.
+- `.autostatuts desactiver` : arrête la lecture automatique.
+- `.autostatuts statut` : affiche l'état du réglage. Le choix est conservé après redémarrage et mise à jour.
+- `.presence enligne|horsligne|ecriture|audio|pause` : change la présence WhatsApp du compte connecté.
+- `.apropos <texte>` : modifie le texte « À propos » du profil WhatsApp.
+- `.confidentialite` : affiche les réglages de confidentialité accessibles depuis la session.
+
+Aucune clé, variable `.env` ou configuration VPS supplémentaire n'est requise pour ces commandes. `autostatuts` est désactivé par défaut afin que chaque installateur choisisse volontairement de l'activer.
+
+## Duo multi-numéros et mention discrète
+
+Quand plusieurs numéros Bestla sont connectés au même projet, le mode duo évite qu'un message envoyé par une session soit exécuté une seconde fois par une autre session dans le même groupe. Il peut aussi déclencher de petites réponses entre les numéros Bestla.
+
+- `.duo activer` / `.duo desactiver` / `.duo statut`
+- `.duo liste` : affiche les règles.
+- `.duo ajouter taghid | hide` : ajoute une réponse exacte entre deux sessions Bestla.
+- `.duo retirer <id>` : supprime une règle.
+- Une règle `taghid -> hide` est déjà fournie par défaut ; elle devient active avec `.duo activer`.
+- `.taghid [message]` : mention discrètement tous les membres du groupe sans afficher la liste complète des numéros. Commande réservée aux administrateurs du groupe.
+
+Les messages provenant d'une autre session Bestla sont stoppés avant le routeur normal : ils ne lancent ni Assistantauto ni la même commande une deuxième fois.
+
+## Téléchargement de médias publics
+
+Bestla installe et entretient automatiquement `yt-dlp` pendant `npm ci`/mise à jour. Aucune clé API n'est demandée. FFmpeg, déjà installé par Bestla, sert à la fusion et à l'extraction audio.
+
+En discussion privée, tu peux aussi **coller uniquement le lien**. Bestla demande alors `360p`, `480p`, `720p`, `1080p`, `best` ou `audio 128k`, puis lance le téléchargement après ta réponse. Le choix reste disponible 10 minutes.
+
+- `.qualites <lien>` : inspecte les résolutions disponibles.
+- `.telecharger <lien> 360p|480p|720p|1080p|best` : télécharge directement une vidéo publique.
+- `.telechargeraudio <lien> 64k|96k|128k|160k|192k|256k|320k` : extrait directement l'audio en MP3.
+
+Domaines publics autorisés : YouTube, Instagram, Facebook, TikTok, X/Twitter, Threads, Vimeo, Dailymotion, SoundCloud, Twitch, Reddit et Pinterest. Bestla ne tente pas de contourner les contenus privés, les connexions obligatoires ou les protections DRM. La qualité peut être abaissée automatiquement si le fichier dépasse la limite média WhatsApp configurée.
+
+## Vitesse et outils vidéo
+
+Réponds au média avec la commande :
+
+- `.vitesse 0.5` à `.vitesse 3` : ralentit ou accélère un audio ou une vidéo. La vidéo et le son restent synchronisés.
+- `.muetvideo` : retire le son d'une vidéo.
+- `.capturevideo 5` : extrait une image à la seconde 5.
+
+Aucune configuration supplémentaire n'est nécessaire après une installation ou une mise à jour Bestla normale.
+

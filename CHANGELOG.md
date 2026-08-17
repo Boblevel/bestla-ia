@@ -1,5 +1,29 @@
 # Journal des changements
 
+### V17 - Assistantauto ~3 s, duo multi-numéros, téléchargements sociaux et vitesse média - 17 août 2026
+
+- Assistantauto vise une réponse autour de 3 secondes : voie locale pour les échanges simples, Gemini `gemini-3.5-flash-lite` en réflexion minimale pour les autres, et réponse locale contextuelle si le réseau dépasse la fenêtre rapide.
+- Règle emoji conservée et renforcée : zéro emoji quand le contact n'en utilise pas ; au maximum un lorsque le contact en utilise.
+- Ajout du mode `.duo` pour coordonner plusieurs sessions Bestla dans le même groupe, éviter les doubles exécutions et créer des réponses exactes entre numéros. Règle par défaut : `taghid -> hide`.
+- Ajout de `.taghid` pour une mention discrète de tous les membres par un administrateur.
+- Ajout de `.qualites`, `.telecharger` et `.telechargeraudio`, plus un mode privé ultra-simple : colle seulement le lien, puis réponds par `720p`, `best` ou `audio 128k`.
+- Installation/réparation automatique de `yt-dlp` via `npm ci`; une mise à jour Bestla rafraîchit aussi le moteur vers le canal nightly recommandé par le projet yt-dlp.
+- Ajout de `.vitesse 0.5..3` pour audio/vidéo avec synchronisation, `.muetvideo` et `.capturevideo`.
+- Sécurité du téléchargeur : pas de shell, domaines sociaux autorisés, refus des adresses privées/locales, playlists désactivées, contenus privés/protégés non contournés.
+- Correction de deux collisions d'aliases préexistantes : `info/apropos` et `latence/vitesse` sont désormais séparées afin que le registre de commandes reste valide.
+- Aucun nouveau token, compte tiers ou réglage `.env` requis.
+
+### Statuts automatiques + commandes WhatsApp pratiques - 17 août 2026
+
+- Ajout de `.lirestatuts` : Bestla mémorise les statuts récents reçus par la session et les marque comme vus en lot.
+- Ajout de `.autostatuts activer|desactiver|statut` : lecture automatique persistante des nouveaux statuts, sans configuration VPS supplémentaire.
+- Compatibilité renforcée avec les formes de statuts Baileys v7 : `status@broadcast` et JID numériques `@broadcast` accompagnés du participant.
+- Les statuts restent totalement séparés du routeur de commandes et d'Assistantauto : aucun risque de réponse automatique à une story.
+- Ajout de `.presence enligne|horsligne|ecriture|audio|pause` pour piloter la présence WhatsApp.
+- Ajout de `.apropos <texte>` pour modifier le texte À propos du profil connecté.
+- Ajout de `.confidentialite` pour afficher les réglages de confidentialité renvoyés par WhatsApp.
+- Aucun nouveau secret, compte tiers, package ou réglage `.env` n'est requis.
+
 ### Assistantauto rapide + moteur vocal multilingue - 17 août 2026
 
 - Assistantauto passe sur `gemini-3.5-flash-lite` avec `thinkingLevel=minimal` pour les conversations courantes, avec repli automatique vers le modèle Gemini configuré.
