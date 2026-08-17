@@ -1,10 +1,13 @@
 import type { BotCommand, CommandContext } from '../types.js'
 import {
+  availableVideoChoices,
   downloadSocialAudio,
   downloadSocialVideo,
   inspectSocialMedia,
   parseAudioBitrate,
   parseVideoQuality,
+  qualityMenuLines,
+  setPendingSocialDownload,
   SocialDownloadError,
 } from '../core/social-downloader.js'
 
@@ -44,15 +47,31 @@ export const socialMediaCommands: BotCommand[] = [
     name: 'telecharger',
     aliases: ['dl', 'download', 'telechargervideo'],
     description: 'Télécharge une vidéo publique depuis un lien compatible (YouTube, Instagram, Facebook, TikTok et autres sites pris en charge).',
-    usage: '<lien> [360p|480p|720p|1080p|best]',
+    usage: '<lien> [240p|360p|480p|720p|1080p|1440p|2160p|best]',
     category: 'Audio & Vidéo',
     cooldownSeconds: 20,
     async execute(ctx) {
       const { url, option } = extractUrlAndOption(ctx)
-      if (!url) return void (await ctx.reply(`Utilisation : ${ctx.prefix}telecharger https://... 720p`))
+      if (!url) return void (await ctx.reply(`Utilisation : ${ctx.prefix}telecharger https://...\nSans qualité, Bestla affiche d’abord les choix disponibles.`))
       try {
+        if (!option) {
+          const info = await inspectSocialMedia(url)
+          const qualities = availableVideoChoices(info.qualities)
+          setPendingSocialDownload(ctx.sessionName, ctx.chatId, ctx.sender, info.url, qualities)
+          await ctx.reply([
+            `Titre : ${info.title.slice(0, 150)}`,
+            `Source : ${info.extractor}`,
+            `Durée : ${durationLabel(info.duration)}`,
+            '',
+            'Choisis simplement une option :',
+            ...qualityMenuLines(qualities),
+            '',
+            'Exemple : 720p',
+          ].join('\n'))
+          return
+        }
         const quality = parseVideoQuality(option)
-        await ctx.reply(`Téléchargement en cours (${quality === 'best' ? 'meilleure qualité' : `${quality}p max`})…`)
+        await ctx.reply(`Téléchargement en cours (${quality === 'best' ? 'meilleure qualité disponible' : `${quality}p`})…`)
         const media = await downloadSocialVideo(url, quality, ctx.config.maxMediaBytes)
         if (media.mimetype.startsWith('video/')) {
           await ctx.send({
@@ -109,11 +128,10 @@ export const socialMediaCommands: BotCommand[] = [
       if (!url) return void (await ctx.reply(`Utilisation : ${ctx.prefix}qualites https://...`))
       try {
         const info = await inspectSocialMedia(url)
-        const standard = [360, 480, 720, 1080, 1440, 2160]
-        const shown = standard.filter((height) => info.qualities.some((actual) => actual >= height - 20 && actual <= height + 20))
-        const available = shown.length ? shown.map((height) => `${height}p`).join(', ') : 'qualités variables selon le site'
+        const choices = availableVideoChoices(info.qualities)
+        const available = choices.map((quality) => quality === 'best' ? 'best' : `${quality}p`).join(', ')
         await ctx.reply(
-          `Titre : ${info.title.slice(0, 180)}\nSource : ${info.extractor}\nDurée : ${durationLabel(info.duration)}\nQualités détectées : ${available}\n\nExemple : ${ctx.prefix}telecharger ${info.url} 720p`,
+          `Titre : ${info.title.slice(0, 180)}\nSource : ${info.extractor}\nDurée : ${durationLabel(info.duration)}\nQualités détectées : ${available}\n\nCommande : ${ctx.prefix}telecharger ${info.url}\nPuis réponds simplement avec la qualité souhaitée, par exemple 720p.`,
         )
       } catch (error) {
         await replyDownloadError(ctx, error)
