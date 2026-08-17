@@ -1,5 +1,17 @@
 # Journal des changements
 
+### Assistantauto rapide + moteur vocal multilingue - 17 août 2026
+
+- Assistantauto passe sur `gemini-3.5-flash-lite` avec `thinkingLevel=minimal` pour les conversations courantes, avec repli automatique vers le modèle Gemini configuré.
+- Réponses locales instantanées pour les salutations, remerciements et petits échanges afin d'éviter un appel réseau inutile.
+- Persona affinée : jeune adulte francophone ouest-africain de 23 ans, poli, naturel et urbain, sans caricature ni imitation d'accent.
+- Règle emoji rigoureuse : aucun emoji si le contact n'en utilise pas ; au maximum un emoji occasionnel lorsque le contact en utilise.
+- Un simple accusé de réception sans emoji peut rester sans réponse au lieu de produire une phrase artificielle.
+- Ajout de `.vocal` / `.tts` / `.textevoix` / `.vocale` : texte vers vraie note vocale WhatsApp OGG/Opus.
+- Ajout de `.voix` pour changer langue, voix homme/femme, voix précise et vitesse ; préférences persistées par utilisateur.
+- Installation automatique de `edge-tts 7.2.8` dans `.venv-tts` via le cycle `npm ci`, sans clé API TTS ni configuration manuelle.
+- Auto-réparation du moteur vocal au premier usage si l'installation initiale a été interrompue.
+
 ### Assistantauto humanisé + suppression du bug DECISION — 17 août 2026
 
 - Suppression de la consigne qui demandait à Gemini d'afficher `DECISION: ...` en fin de réponse : le marqueur interne ne peut plus être envoyé volontairement au contact.

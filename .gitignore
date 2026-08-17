@@ -10,3 +10,4 @@ output/
 releases/
 __pycache__/
 *.pyc
+.venv-tts/

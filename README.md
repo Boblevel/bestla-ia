@@ -31,6 +31,21 @@ La clé Gemini déjà présente sur une installation existante est conservée pe
 - `.assistantauto statut` : affiche son état.
 - `.assistantauto consigne <texte>` : ajoute le contexte métier souhaité.
 
-Le mode automatique écrit comme une personne de 23 ans sur WhatsApp : réponses courtes, naturelles et adaptées au ton visible du contact. Il évite les formulations de chatbot, ne signe pas les messages, ne révèle aucun marqueur interne et ne recommence pas une salutation à chaque tour. Les demandes commerciales importantes ou les demandes de parler directement au propriétaire restent signalées en interne sans interrompre la conversation.
+Assistantauto privilégie maintenant la vitesse : les salutations, remerciements et petits échanges courants sont traités localement et instantanément ; les autres messages utilisent `gemini-3.5-flash-lite` avec réflexion minimale, puis retombent sur le modèle Gemini configuré si nécessaire. Le style est celui d'un jeune adulte francophone ouest-africain de 23 ans, poli et naturel, sans caricature ni imitation d'accent. Le ton s'adapte uniquement aux messages visibles du contact.
 
-Pour les messages très courts comme `OK`, `merci`, `d'accord` ou `pas de souci`, Bestla peut simplement réagir avec un emoji plutôt que d'envoyer une réponse artificielle.
+Règle emoji stricte : si le contact n'utilise aucun emoji, Assistantauto n'en envoie aucun. Si le contact en utilise, la réponse peut en reprendre au maximum un lorsque cela paraît naturel. Un simple `OK` sans emoji peut rester sans réponse, comme dans une conversation humaine.
+
+## Texte vers vocal
+
+Le moteur vocal est installé automatiquement pendant `npm ci`, donc aussi lors d'une installation neuve ou d'une mise à jour depuis le panneau Bestla. Aucune clé TTS n'est demandée. Le service utilise `edge-tts` et convertit le résultat en OGG/Opus pour l'envoyer comme vraie note vocale WhatsApp.
+
+- `.vocal <texte>` (alias `.tts`, `.textevoix`, `.vocale`) : transforme le texte en note vocale.
+- `.voix` : affiche les réglages de la personne qui lance la commande.
+- `.voix langue fr` : français. Exemples supplémentaires : `en-ng`, `en`, `sw`, `ar`, `es`, `pt`, `de`, `it`, `tr`, `hi`, `af`.
+- `.voix homme` / `.voix femme` : change le genre vocal.
+- `.voix liste fr` : liste les voix disponibles pour une langue.
+- `.voix choisir fr-FR-DeniseNeural` : sélectionne une voix précise.
+- `.voix vitesse +10%` : règle la vitesse entre -50% et +50%.
+- `.voix reset` : rétablit la voix française masculine par défaut.
+
+Les préférences sont enregistrées automatiquement par utilisateur dans `data/tts-preferences.json`. Le dossier `.venv-tts/` est local au serveur et ignoré par Git. Si le moteur n'a pas pu être préparé pendant une mise à jour, la première commande `.vocal` tente de le réparer automatiquement.

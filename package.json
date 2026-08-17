@@ -14,7 +14,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
     "panel": "node dist/cli.js",
-    "release": "bash scripts/creer-release.sh"
+    "release": "bash scripts/creer-release.sh",
+    "postinstall": "bash scripts/ensure-tts.sh || echo 'Bestla TTS sera retenté automatiquement au premier usage.'"
   },
   "engines": {
     "node": ">=22.0.0"
