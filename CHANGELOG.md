@@ -1,5 +1,17 @@
 # Journal des changements
 
+### Assistantauto humanisé + suppression du bug DECISION — 17 août 2026
+
+- Suppression de la consigne qui demandait à Gemini d'afficher `DECISION: ...` en fin de réponse : le marqueur interne ne peut plus être envoyé volontairement au contact.
+- Nettoyage défensif des anciens marqueurs `DECISION`, `DECISION:` et `DECISION: TRANSFERER/REPONDRE` si un modèle en produit encore un.
+- Persona WhatsApp retravaillée : jeune adulte francophone de 23 ans, naturel, bref, spontané, sans ton « service client ».
+- Adaptation au ton observable du contact : tutoiement/familiarité si la conversation l'établit, vouvoiement et sobriété si le contact est formel.
+- Réponses sociales plus humaines, sans formules répétitives comme « Comment puis-je vous aider aujourd'hui ? » ou « C'est bien noté ».
+- Les petits accusés de réception (`OK`, `d'accord`, `merci`, `pas de souci`, etc.) peuvent recevoir une simple réaction WhatsApp au lieu d'un paragraphe IA.
+- Les demandes directes à Rhaff/propriétaire déclenchent toujours le signalement interne sans afficher de ticket, de transfert ou de statut au contact.
+- Aucun profilage démographique : l'adaptation se fait uniquement à partir du style visible dans les messages.
+- Pool média Cloudflare conservé : deux Workers centraux avec bascule automatique, sans secret Cloudflare dans le dépôt.
+
 ### Pool Cloudflare central de test + secours vidéo — 16 août 2026
 
 - Deux comptes Workers AI centraux préconfigurés pour les tests, sans saisie Cloudflare sur le VPS des installateurs.
@@ -9,7 +21,7 @@
 - `.generervideo` conserve Gemini lorsqu'il est disponible et rétablit le comportement fiable de l'ancienne version : courte vidéo locale de 5 secondes depuis une image si Gemini échoue ou n'est pas configuré.
 - `.animerimage` bénéficie du même secours local.
 - Les médias IA sont activés automatiquement lors de l'installation/mise à jour.
-- Cette configuration centrale contient des identifiants temporaires destinés aux tests et devra être remplacée après révocation.
+- Le dépôt ne contient plus de token Cloudflare ni d’Account ID : uniquement les URL des deux Workers centraux déjà déployés.
 
 ### Mise à jour hybride Cloudflare + Gemini — 16 août 2026
 
