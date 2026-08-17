@@ -81,13 +81,19 @@ Les messages provenant d'une autre session Bestla sont stoppés avant le routeur
 
 Bestla installe et entretient automatiquement `yt-dlp` pendant `npm ci`/mise à jour. Aucune clé API n'est demandée. FFmpeg, déjà installé par Bestla, sert à la fusion et à l'extraction audio.
 
-En discussion privée, tu peux aussi **coller uniquement le lien**. Bestla demande alors `360p`, `480p`, `720p`, `1080p`, `best` ou `audio 128k`, puis lance le téléchargement après ta réponse. Le choix reste disponible 10 minutes.
+En discussion privée, deux usages sont possibles :
+
+1. colle uniquement le lien ; Bestla analyse le média puis affiche les qualités réellement détectées ;
+2. utilise `.telecharger <lien>` sans qualité ; Bestla affiche le même menu et tu réponds ensuite simplement `720p`, `1080p`, `best`, `audio 128k`, etc. Le choix reste disponible 10 minutes.
 
 - `.qualites <lien>` : inspecte les résolutions disponibles.
-- `.telecharger <lien> 360p|480p|720p|1080p|best` : télécharge directement une vidéo publique. Le moteur yt-dlp et le fournisseur PO Token YouTube sont préparés automatiquement pendant l'installation/mise à jour ; aucune clé ou compte YouTube n'est demandé pour les contenus publics.
+- `.telecharger <lien>` : affiche d'abord le menu de qualités.
+- `.telecharger <lien> 240p|360p|480p|720p|1080p|1440p|2160p|best` : téléchargement direct si tu connais déjà la qualité souhaitée.
 - `.telechargeraudio <lien> 64k|96k|128k|160k|192k|256k|320k` : extrait directement l'audio en MP3.
 
-Domaines publics autorisés : YouTube, Instagram, Facebook, TikTok, X/Twitter, Threads, Vimeo, Dailymotion, SoundCloud, Twitch, Reddit et Pinterest. Bestla ne tente pas de contourner les contenus privés, les connexions obligatoires ou les protections DRM. La qualité peut être abaissée automatiquement si le fichier dépasse la limite média WhatsApp configurée.
+Pour YouTube public, Bestla prépare automatiquement le fournisseur PO Token, démarre son serveur local et essaie plusieurs profils (`mweb`, `web_safari`, puis le profil standard) avant d'abandonner. Pour les autres réseaux, Bestla tente le profil normal puis un profil d'impersonation navigateur quand le binaire yt-dlp le permet ; Instagram possède en plus un profil iOS de secours.
+
+Domaines publics autorisés : YouTube, Instagram, Facebook, TikTok, X/Twitter, Threads, Vimeo, Dailymotion, SoundCloud, Twitch, Reddit, Pinterest, Snapchat Spotlight, Streamable, Tumblr, Flickr et Imgur. Bestla ne tente pas de contourner les contenus privés, les connexions obligatoires ou les protections DRM. La qualité peut être abaissée automatiquement si le fichier dépasse la limite média WhatsApp configurée ; le message final indique alors la qualité réellement utilisée.
 
 ## Vitesse et outils vidéo
 

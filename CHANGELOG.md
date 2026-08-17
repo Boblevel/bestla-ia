@@ -1,3 +1,13 @@
+## 2026-08-17 — V17.7 — Sélecteur de qualité + secours multi-réseaux
+
+- `.telecharger <lien>` ne part plus automatiquement en 720p : Bestla analyse d'abord le média, affiche les qualités détectées et attend un simple `720p`, `1080p`, `best` ou `audio 128k`.
+- Le collage direct d'un lien utilise le même sélecteur et partage la même mémoire de choix pendant 10 minutes.
+- Ajout des qualités 240p, 1440p et 2160p lorsque le site les expose ; la limite WhatsApp peut toujours imposer une adaptation vers une qualité plus basse, annoncée dans le résultat.
+- YouTube public : le plugin PO Token est chargé explicitement, le serveur local bgutil est démarré automatiquement et Bestla retente en interne avec mweb + PO Token, web_safari puis le profil standard. Le message « réessaie le même lien une fois » est supprimé.
+- Instagram : ajout d'un profil iOS de secours. Les autres réseaux utilisent un second profil d'impersonation Chrome lorsque le build yt-dlp fournit curl_cffi.
+- Ajout des domaines publics Snapchat Spotlight, Streamable, Tumblr, Flickr et Imgur à la liste autorisée.
+- Les contenus réellement privés, membres, authentifiés ou protégés restent volontairement non contournés.
+
 ## 2026-08-17 — V17.6 — Téléchargement YouTube public renforcé
 
 - Corrige le faux message « contenu privé » rencontré sur certaines vidéos YouTube publiques quand YouTube déclenche sa vérification anti-bot.
