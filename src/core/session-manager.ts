@@ -15,6 +15,7 @@ import type { AppConfig } from '../config.js'
 import type { SessionStatus } from '../types.js'
 import { normalizeUserJid } from '../utils/jid.js'
 import { baileysLogger, logger } from './logger.js'
+import { isWhatsAppStatusMessage, markStatusMessageRead, rememberStatusMessage } from './status-viewer.js'
 
 export interface SessionRuntime {
   name: string
@@ -108,6 +109,7 @@ export class SessionManager {
     private readonly config: AppConfig,
     private readonly onMessage: MessageHandler,
     private readonly onParticipants: ParticipantsHandler,
+    private readonly shouldAutoReadStatuses: () => boolean = () => false,
   ) {}
 
   async start(): Promise<void> {
@@ -286,6 +288,19 @@ export class SessionManager {
           },
           'Message WhatsApp reçu par Baileys',
         )
+
+        if (isWhatsAppStatusMessage(message)) {
+          const remembered = rememberStatusMessage(sock, message)
+          if (!fromMe && remembered && this.shouldAutoReadStatuses()) {
+            const read = await markStatusMessageRead(sock, message)
+            logger.info(
+              { session: name, messageId: message.key.id ?? null, read },
+              'Statut WhatsApp traité automatiquement',
+            )
+          }
+          // Les statuts ne sont jamais envoyés au routeur de commandes/Assistantauto.
+          continue
+        }
 
         // "notify" est le chemin normal des nouveaux messages. Certains flux récents
         // peuvent cependant arriver en "append" ; on ne les traite que s'ils sont
