@@ -6,7 +6,7 @@ import { registerBuiltInCommands } from '../src/plugins/index.js'
 test('enregistre un catalogue étendu de commandes françaises sans anciens noms anglais', () => {
   const registry = new CommandRegistry()
   registerBuiltInCommands(registry)
-  assert.ok(registry.list().length >= 160)
+  assert.ok(registry.list().length >= 175)
   for (const oldName of ['ping', 'uptime', 'owner', 'kick', 'add', 'open', 'close', 'warn', 'sticker']) {
     assert.equal(registry.get(oldName), undefined, oldName)
   }
@@ -91,15 +91,30 @@ test('enregistre un catalogue étendu de commandes françaises sans anciens noms
     'programmerstatut',
     'publierstatut',
     'statuts',
+    'telechargerstatut',
     'recuperermedia',
     'copiertexte',
     'infosmessage',
     'telechargerapk',
+    'comptermembres',
+    'tiragemembre',
+    'calculmarge',
+    'prixvente',
+    'remise',
+    'objectifvente',
+    'relanceclient',
+    'ficheclient',
+    'choisirhasard',
+    'questioncouple',
+    'defirigolo',
+    'verite',
+    'gage',
+    'compatibilite',
+    'blague',
   ]) {
     assert.ok(registry.get(frenchName), frenchName)
   }
-  assert.ok(registry.get('pp'), 'pp')
-  for (const oldEnglishName of ['angel', 'avenger', 'blub', 'bpink', 'cat', 'glitch', 'glitter', 'hacker', 'light', 'marvel', 'sci', 'sign', 'tattoo', 'watercolor', 'fullpp', 'jid', 'gjid', 'left', 'call', 'caption', 'clear', 'delete', 'dlt', 'doc', 'online', 'poll', 'read', 'scstatus', 'setstatus', 'status', 'vv', 'taghid', 'hidetag', 'block', 'unblock', 'produitsdigitaux', 'acheterdigital', 'produitdigital', 'livrerdigital', 'download', 'dl', 'tts', 'tictactoe', 'videoedit', 'commandeswitch', 'ask', 'prompt', 'replypro']) {
+  for (const oldEnglishName of ['pp', 'angel', 'avenger', 'blub', 'bpink', 'cat', 'glitch', 'glitter', 'hacker', 'light', 'marvel', 'sci', 'sign', 'tattoo', 'watercolor', 'fullpp', 'jid', 'gjid', 'left', 'call', 'caption', 'clear', 'delete', 'dlt', 'doc', 'online', 'poll', 'read', 'scstatus', 'setstatus', 'status', 'vv', 'taghid', 'hidetag', 'block', 'unblock', 'produitsdigitaux', 'acheterdigital', 'produitdigital', 'livrerdigital', 'download', 'dl', 'tts', 'tictactoe', 'videoedit', 'framevideo', 'commandeswitch', 'ask', 'prompt', 'replypro']) {
     assert.equal(registry.get(oldEnglishName), undefined, oldEnglishName)
   }
 })
