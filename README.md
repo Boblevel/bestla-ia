@@ -1,5 +1,13 @@
 # Bestla iA
 
+## V18.1.2 — correction LID pour `.envoyervueunique`
+
+- `.envoyervueunique <numéro>` résout maintenant le **LID WhatsApp** avant l’envoi lorsque Baileys 7.x connaît la correspondance PN -> LID.
+- Si la commande est lancée dans le chat privé du destinataire et que WhatsApp fournit déjà `remoteJidAlt`, Bestla réutilise directement le `@lid` de ce chat.
+- Sinon, Bestla consulte `signalRepository.lidMapping`, valide le numéro avec `onWhatsApp()`, puis retente la résolution LID avant le fallback PN.
+- La photo, vidéo ou l’audio reste envoyé en **vue unique native**, sans texte, légende, mention, signature ou citation chez le destinataire.
+- La commande ne touche pas au mode `.ephemereauto` ni au délai des messages éphémères.
+
 ## V18.1 — envoi vue unique privé et éphémère automatique 24 h
 
 - `.envoyervueunique <numéro>` : en répondant à une photo, vidéo ou audio, Bestla envoie directement le média au numéro indiqué en **vue unique native WhatsApp**, sans légende, sans mention, sans signature et sans message cité chez le destinataire.

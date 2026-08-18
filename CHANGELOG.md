@@ -1,3 +1,11 @@
+## 2026-08-18 — V18.1.2 — routage LID fiable pour l’envoi vue unique
+
+- Correction ciblée de `.envoyervueunique` pour Baileys 7.x : Bestla privilégie désormais le LID (`@lid`) déjà connu du chat ou du magasin `signalRepository.lidMapping` avant d’envoyer le média.
+- Si aucun mapping n’est déjà en cache, Bestla valide le numéro avec `onWhatsApp()`, retente la résolution PN -> LID, puis utilise le JID canonicalisé uniquement en dernier recours.
+- Le destinataire reçoit toujours uniquement la photo, vidéo ou l’audio en `viewOnce: true` : aucune légende, mention, signature ni citation n’est ajoutée.
+- `.envoyervueunique` ne modifie aucun réglage de messages éphémères ; un journal technique indique maintenant la destination réellement utilisée (`lid` ou `pn`) et l’identifiant du message envoyé.
+- Aucun changement de dépendance, de base de données ou de comportement des autres commandes.
+
 ## 2026-08-18 — V18.1 — envoi vue unique et éphémère automatique 24 h
 
 - Ajout de `.envoyervueunique <numéro>` (`.transfervueunique`) : réponds à une photo, vidéo ou audio ; Bestla télécharge le média puis l’envoie au destinataire en `viewOnce: true`. Aucun texte, aucune légende, aucune mention, aucune signature et aucune citation ne sont ajoutés au message reçu.
