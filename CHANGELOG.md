@@ -1,3 +1,9 @@
+## 2026-08-18 — V18.1 — envoi vue unique et éphémère automatique 24 h
+
+- Ajout de `.envoyervueunique <numéro>` (`.transfervueunique`) : réponds à une photo, vidéo ou audio ; Bestla télécharge le média puis l’envoie au destinataire en `viewOnce: true`. Aucun texte, aucune légende, aucune mention, aucune signature et aucune citation ne sont ajoutés au message reçu.
+- Ajout de `.ephemereauto activer|desactiver|statut` : le réglage est persistant et applique `disappearingMessagesInChat: 86400` à chaque discussion privée entrante lorsque le mode est actif.
+- Les groupes, statuts et newsletters restent exclus de l’automatisation 24 h.
+
 ## 2026-08-18 — V18.0.1 — correctif chirurgical statuts + TextMaker silencieux
 
 - `.telechargerstatut` privilégie maintenant le message de statut complet mémorisé par la session à partir du `stanzaId` de la réponse WhatsApp, au lieu de dépendre uniquement de l’aperçu cité dans la discussion privée.

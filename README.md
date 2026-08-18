@@ -1,5 +1,12 @@
 # Bestla iA
 
+## V18.1 — envoi vue unique privé et éphémère automatique 24 h
+
+- `.envoyervueunique <numéro>` : en répondant à une photo, vidéo ou audio, Bestla envoie directement le média au numéro indiqué en **vue unique native WhatsApp**, sans légende, sans mention, sans signature et sans message cité chez le destinataire.
+- `.ephemereauto activer|desactiver|statut` : active un mode global qui règle automatiquement à **24 h** les messages éphémères de toute discussion privée entrante. Les groupes et statuts ne sont pas concernés.
+- Le réglage `.ephemereauto` est conservé dans `data/database.json` après redémarrage. Le vrai dossier `data/` reste privé et n’est jamais inclus dans les ZIP de code.
+
+
 ## Commande d'installation
 
 ```bash
