@@ -607,7 +607,7 @@ Statuts mémorisés en attente : *${pendingStatusCount(ctx.sock)}*.`)
         return void (await ctx.reply(`Indique le numéro du destinataire : ${ctx.prefix}envoyervueunique 22670000000`))
       }
 
-      const lookup = await ctx.sock.onWhatsApp(requestedTarget).catch(() => [])
+      const lookup = (await ctx.sock.onWhatsApp(requestedTarget).catch(() => [])) ?? []
       const destination = lookup.find((entry) => entry.exists)?.jid ?? requestedTarget
       const media = await downloadMedia(source, ctx.config.maxMediaBytes, ctx.sock)
 
