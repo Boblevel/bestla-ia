@@ -4,23 +4,19 @@ import type { CommandContext, IncomingWebhookPayload } from '../types.js'
 import { signText } from '../utils/brand.js'
 import { jidToMention, normalizeUserJid, phoneToJid, sameUser } from '../utils/jid.js'
 import { mentionedJids, quotedAsMessage } from '../utils/message.js'
+import { safeFetchBuffer } from '../utils/safe-fetch.js'
 import { messageText, messageType, parseCommand } from '../utils/text.js'
 import type { JsonDatabase } from './database.js'
 import { AutomationService, isSiblingBestlaSession } from './automation.js'
-import { downloadApk, isPotentialApkLink } from './apk-downloader.js'
 import { logger } from './logger.js'
 import { ModerationService } from './moderation.js'
 import {
-  availableVideoChoices,
   clearPendingSocialDownload,
   downloadSocialAudio,
   downloadSocialVideo,
   getPendingSocialDownload,
-  inspectSocialMedia,
-  normalizePublicMediaUrl,
   parseSocialDownloadChoice,
   qualityMenuLines,
-  setPendingSocialDownload,
   SocialDownloadError,
   videoChoiceAllowed,
 } from './social-downloader.js'
@@ -42,6 +38,7 @@ export class MessageRouter {
   private readonly automation: AutomationService
   private readonly cooldowns = new CooldownManager()
   private readonly webhook: WebhookDispatcher
+  private readonly contactNames = new Map<string, string>()
 
   constructor(
     private readonly config: AppConfig,
@@ -65,6 +62,8 @@ export class MessageRouter {
       : (message.key.remoteJidAlt ?? message.key.participantAlt ?? message.key.participant ?? chatId)
     const sender = normalizeUserJid(fromMe ? runtime.sock.user?.id : incomingSender)
     if (!sender) return
+    const pushName = message.pushName?.trim()
+    if (pushName && pushName.length <= 100) this.contactNames.set(sender, pushName)
     const body = messageText(message)
 
     logger.info(
@@ -195,57 +194,16 @@ export class MessageRouter {
         return
       }
 
-      if (!isGroup && /^https?:\/\/\S+$/i.test(body.trim())) {
-        const pastedUrl = body.trim()
-        if (isPotentialApkLink(pastedUrl)) {
-          try {
-            await send({ text: 'Lien APK détecté. Téléchargement en cours…' })
-            const apk = await downloadApk(pastedUrl, this.config.maxApkBytes)
-            await send({
-              document: apk.buffer,
-              mimetype: 'application/vnd.android.package-archive',
-              fileName: apk.fileName,
-              caption: [
-                '*APK téléchargé par Bestla iA*',
-                apk.packageId ? `Paquet : ${apk.packageId}` : undefined,
-                `Source : ${apk.sourceLabel}`,
-                `Taille : ${(apk.buffer.length / 1024 / 1024).toFixed(1)} Mo`,
-                `SHA256 : ${apk.sha256}`,
-              ].filter(Boolean).join('\n'),
-            })
-          } catch (error) {
-            await send({ text: error instanceof Error ? error.message : 'Impossible de télécharger cet APK.' })
-          }
-          return
-        }
+      // Aucun lien brut n'est traité automatiquement. Le téléchargement de médias
+      // sociaux ou d'APK démarre uniquement après une commande explicite.
+    }
 
-        let url: string | undefined
-        try {
-          url = normalizePublicMediaUrl(pastedUrl)
-        } catch (error) {
-          if (!(error instanceof SocialDownloadError)) throw error
-        }
-        if (url) {
-          try {
-            const info = await inspectSocialMedia(url)
-            const qualities = availableVideoChoices(info.qualities)
-            setPendingSocialDownload(runtime.name, chatId, sender, url, qualities)
-            await send({
-              text: [
-                `Lien détecté : ${info.title.slice(0, 120)}`,
-                'Choisis simplement une option dans les 10 minutes :',
-                ...qualityMenuLines(qualities),
-                '',
-                'Exemple : 720p',
-              ].join('\n'),
-            })
-          } catch (error) {
-            if (error instanceof SocialDownloadError) await send({ text: error.message })
-            else throw error
-          }
-          return
-        }
-      }
+    if (!parsed.isCommand && !fromMe && /https?:\/\/\S+/i.test(body)) {
+      logger.info(
+        { session: runtime.name, chatId, sender },
+        'Lien reçu sans commande explicite : aucune analyse ni automatisation lancée',
+      )
+      return
     }
 
     if (!parsed.isCommand && !fromMe) {
@@ -364,17 +322,54 @@ export class MessageRouter {
     if (!shouldWelcome && !shouldSayGoodbye) return
 
     const metadata = await runtime.sock.groupMetadata(event.id).catch(() => undefined)
-    const participants = event.participants.map(normalizeUserJid)
-    const mentions = participants.map(jidToMention).join(', ')
+    const participants = event.participants.map(normalizeUserJid).filter(Boolean)
     const groupName = metadata?.subject ?? 'le groupe'
     const template = shouldWelcome ? settings.welcomeMessage : settings.goodbyeMessage
     const fallback = shouldWelcome
       ? `Bienvenue {nom} dans *{groupe}* ! 👋`
       : `Au revoir {nom}.`
-    const text = (template || fallback)
-      .replaceAll('{nom}', mentions)
-      .replaceAll('{groupe}', groupName)
-      .replaceAll('{nombre}', String(participants.length))
-    await runtime.send(event.id, { text: signText(text, this.config), mentions: participants })
+
+    if (!shouldWelcome) {
+      const mentions = participants.map(jidToMention).join(', ')
+      const text = (template || fallback)
+        .replaceAll('{nom}', mentions)
+        .replaceAll('{groupe}', groupName)
+        .replaceAll('{nombre}', String(participants.length))
+      await runtime.send(event.id, { text: signText(text, this.config), mentions: participants })
+      return
+    }
+
+    const totalMembers = metadata?.size ?? metadata?.participants.length ?? participants.length
+    for (const participant of participants) {
+      const mention = jidToMention(participant)
+      const knownName = this.contactNames.get(participant)
+      const welcomeText = (template || fallback)
+        .replaceAll('{nom}', mention)
+        .replaceAll('{groupe}', groupName)
+        .replaceAll('{nombre}', String(totalMembers))
+      const details = [
+        welcomeText,
+        '',
+        '👤 *NOUVEAU MEMBRE*',
+        `Nom : *${knownName ?? mention}*`,
+        `Profil : ${mention}`,
+        `Groupe : *${groupName}*`,
+        `Membres : *${totalMembers}*`,
+      ].join('\n')
+
+      const profileUrl = await runtime.sock.profilePictureUrl(participant, 'image').catch(() => undefined)
+      if (profileUrl) {
+        const profile = await safeFetchBuffer(profileUrl, 5 * 1024 * 1024).catch(() => undefined)
+        if (profile?.buffer.length) {
+          await runtime.send(event.id, {
+            image: profile.buffer,
+            caption: signText(details, this.config),
+            mentions: [participant],
+          })
+          continue
+        }
+      }
+      await runtime.send(event.id, { text: signText(details, this.config), mentions: [participant] })
+    }
   }
 }
