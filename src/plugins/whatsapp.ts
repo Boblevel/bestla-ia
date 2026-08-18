@@ -3,7 +3,8 @@ import { mkdir, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { BotCommand, CommandContext } from '../types.js'
 import type { ScheduledJob } from '../core/database.js'
-import { jidToMention, phoneToJid } from '../utils/jid.js'
+import { jidToMention, phoneToJid, sameUser } from '../utils/jid.js'
+import { logger } from '../core/logger.js'
 import { safeFetchBuffer } from '../utils/safe-fetch.js'
 import { pendingStatusCount, readRememberedStatuses, resolveRememberedStatusMessage } from '../core/status-viewer.js'
 import { downloadMedia, findMedia } from '../utils/message.js'
@@ -30,6 +31,47 @@ function shortId(): string {
 function currentPrivateTarget(ctx: CommandContext): string {
   if (!ctx.isGroup && (ctx.chatId.endsWith('@s.whatsapp.net') || ctx.chatId.endsWith('@lid'))) return ctx.chatId
   return ctx.sender
+}
+
+async function resolvePrivateOutboundJid(ctx: CommandContext, requestedTarget: string): Promise<string | undefined> {
+  if (requestedTarget.endsWith('@lid')) return requestedTarget
+
+  // Si la commande est lancée dans le chat privé de cette personne, le LID déjà
+  // fourni par WhatsApp est la destination la plus fiable en Baileys 7.x.
+  const currentAlt = ctx.message.key.remoteJidAlt
+  if (!ctx.isGroup && ctx.chatId.endsWith('@lid') && currentAlt && sameUser(currentAlt, requestedTarget)) {
+    return ctx.chatId
+  }
+
+  const lidMapping = ctx.sock.signalRepository?.lidMapping
+
+  // Réutilise d'abord un mapping PN -> LID déjà connu par la session.
+  if (lidMapping) {
+    try {
+      const cachedLid = await lidMapping.getLIDForPN(requestedTarget)
+      if (cachedLid) return cachedLid
+    } catch {
+      // Le lookup réseau ci-dessous reste disponible en secours.
+    }
+  }
+
+  // onWhatsApp valide/canonicalise le PN. En Baileys 7.x il ne faut pas
+  // supposer qu'il renverra directement le LID.
+  const lookup = (await ctx.sock.onWhatsApp(requestedTarget).catch(() => [])) ?? []
+  const matched = lookup.find((entry) => entry.exists)
+  if (!matched?.jid) return undefined
+
+  // Le USync déclenché par onWhatsApp peut avoir appris le mapping LID.
+  if (lidMapping) {
+    try {
+      const mappedLid = await lidMapping.getLIDForPN(matched.jid)
+      if (mappedLid) return mappedLid
+    } catch {
+      // Fallback propre vers le JID canonicalisé renvoyé par WhatsApp.
+    }
+  }
+
+  return matched.jid
 }
 
 function parseStatusSchedule(specification: string): { date: Date; repeat: ScheduledJob['repeat'] } | undefined {
@@ -607,17 +649,35 @@ Statuts mémorisés en attente : *${pendingStatusCount(ctx.sock)}*.`)
         return void (await ctx.reply(`Indique le numéro du destinataire : ${ctx.prefix}envoyervueunique 22670000000`))
       }
 
-      const lookup = (await ctx.sock.onWhatsApp(requestedTarget).catch(() => [])) ?? []
-      const destination = lookup.find((entry) => entry.exists)?.jid ?? requestedTarget
+      const destination = await resolvePrivateOutboundJid(ctx, requestedTarget)
+      if (!destination) {
+        return void (await ctx.reply('Ce numéro n’est pas disponible sur WhatsApp ou sa destination n’a pas pu être résolue.'))
+      }
+
       const media = await downloadMedia(source, ctx.config.maxMediaBytes, ctx.sock)
+      let sentMessageId: string | undefined
 
       if (media.type === 'image') {
-        await ctx.sock.sendMessage(destination, { image: media.buffer, viewOnce: true })
+        const sent = await ctx.sock.sendMessage(destination, { image: media.buffer, viewOnce: true })
+        sentMessageId = sent?.key.id ?? undefined
       } else if (media.type === 'video') {
-        await ctx.sock.sendMessage(destination, { video: media.buffer, mimetype: media.mimetype, viewOnce: true })
+        const sent = await ctx.sock.sendMessage(destination, { video: media.buffer, mimetype: media.mimetype, viewOnce: true })
+        sentMessageId = sent?.key.id ?? undefined
       } else {
-        await ctx.sock.sendMessage(destination, { audio: media.buffer, mimetype: media.mimetype, ptt: false, viewOnce: true })
+        const sent = await ctx.sock.sendMessage(destination, { audio: media.buffer, mimetype: media.mimetype, ptt: false, viewOnce: true })
+        sentMessageId = sent?.key.id ?? undefined
       }
+
+      logger.info(
+        {
+          session: ctx.sessionName,
+          requestedTarget,
+          destination,
+          addressingMode: destination.endsWith('@lid') ? 'lid' : 'pn',
+          sentMessageId: sentMessageId ?? null,
+        },
+        'Vue unique envoyée avec destination WhatsApp résolue',
+      )
     },
   },
   {
