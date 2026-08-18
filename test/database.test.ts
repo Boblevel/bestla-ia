@@ -212,6 +212,21 @@ test('persiste le réglage de lecture automatique des statuts', async (t) => {
   assert.equal(reopened.getAutoStatusView(), true)
 })
 
+test('persiste le réglage automatique des messages éphémères 24 h', async (t) => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'bestla-ephemeral-auto-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const db = new JsonDatabase(testConfig(directory))
+  await db.init()
+
+  assert.equal(db.getAutoEphemeral24h(), false)
+  await db.setAutoEphemeral24h(true)
+  assert.equal(db.getAutoEphemeral24h(), true)
+
+  const reopened = new JsonDatabase(testConfig(directory))
+  await reopened.init()
+  assert.equal(reopened.getAutoEphemeral24h(), true)
+})
+
 test('persiste les règles de coordination entre sessions Bestla', async (t) => {
   const directory = await mkdtemp(path.join(tmpdir(), 'bestla-duo-'))
   t.after(() => rm(directory, { recursive: true, force: true }))

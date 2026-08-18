@@ -93,6 +93,8 @@ test('enregistre un catalogue étendu de commandes françaises sans anciens noms
     'statuts',
     'telechargerstatut',
     'recuperermedia',
+    'envoyervueunique',
+    'ephemereauto',
     'copiertexte',
     'infosmessage',
     'telechargerapk',
