@@ -13,6 +13,17 @@ bestla
 ```
 
 
+## V18.0 — TextMaker premium, statuts téléchargeables, liens sur commande et outils communauté/business
+
+- Le **Créateur de texte V3** n'utilise plus un simple fond local : Bestla demande un arrière-plan premium à son moteur média IA déjà configuré, puis superpose le texte exact localement avec `sharp`. Si le fournisseur IA est indisponible, le rendu local reste disponible en secours.
+- `.telechargerstatut` télécharge une **photo, vidéo ou audio de statut** lorsque la commande répond directement au statut.
+- Un message contenant un lien HTTP(S) sans commande **ne déclenche plus ni analyse, ni téléchargement, ni Assistantauto**. Le propriétaire garde le contrôle avec `.telecharger`, `.qualites`, `.telechargeraudio` ou `.telechargerapk`.
+- `.comptermembres` affiche le nombre total de membres, d'administrateurs et de membres standards d'un groupe.
+- Le message de bienvenue est enrichi avec la photo de profil visible, le nom connu ou la mention du membre, le nom du groupe et le nombre total de membres.
+- Nouvelles commandes business : `.calculmarge`, `.prixvente`, `.remise`, `.objectifvente`, `.relanceclient`, `.ficheclient`.
+- Nouvelles commandes communauté/détente : `.tiragemembre`, `.choisirhasard`, `.questioncouple`, `.defirigolo`, `.verite`, `.gage`, `.compatibilite`, `.blague`.
+- Francisation complémentaire : l'ancien alias `.pp`, l'alias `.framevideo` et le sous-ordre `.voix reset` ne sont plus exposés ; utiliser `.photoprofil`, `.photodevideo` et `.voix reinitialiser`.
+
 ## V17.9 — commandes françaises, récupération audio, TextMaker amélioré et APK
 
 ### Commandes officielles en français
@@ -28,9 +39,9 @@ Les noms affichés dans `.menu` sont désormais en français. Les commandes ajou
 - `.produitsnumeriques`, `.acheternumerique`, `.produitnumerique`, `.livrernumerique` : remplacent les anciens noms contenant « digital ».
 - `.mentioncachee` : remplace l’ancien nom `.taghid` dans les groupes et dans la règle Duo par défaut.
 
-### Créateur de texte V2
+### Créateur de texte V3 premium
 
-Les effets TextMaker ont été retravaillés avec des compositions différentes selon le style : extrusion 3D, ailes/halo, bulles, parasite RVB, paillettes, graffiti, terminal pirate, néons, interface science-fiction, enseigne, ornements tatouage et taches aquarelle. Les images sont générées localement en 1280×1280 avec `sharp`, sans clé API.
+Les 17 effets conservent leurs noms français, mais le rendu change : Bestla génère d'abord un **arrière-plan premium par son moteur média IA existant**, adapté au style (cinématique, céleste, néon, graffiti, aquarelle, etc.), puis superpose le texte demandé localement en 1280×1280 avec `sharp` pour éviter les fautes de lettres typiques des générateurs d'images. Aucun nouveau réglage n'est demandé à l'installation. Si le moteur IA est momentanément indisponible, le rendu local V2 sert automatiquement de secours.
 
 - `.3d <texte>`
 - `.ange <texte>`
@@ -60,7 +71,7 @@ La récupération reste manuelle : Bestla ne crée pas d’archive cachée des m
 
 ### Téléchargement APK
 
-En conversation privée, **tu peux aussi simplement coller le lien** : si Bestla reconnaît Google Play, APKPure, F-Droid ou une URL directe `.apk`, le téléchargement démarre automatiquement. La commande explicite reste disponible.
+Le téléchargement APK est **toujours déclenché volontairement**. Un message contenant un lien sans commande ne lance ni analyse, ni téléchargement, ni réponse Assistantauto. Utilise `.telechargerapk <lien ou identifiant de paquet>`.
 
 Le moteur APK est installé/réparé automatiquement pendant `npm ci` et au premier usage si nécessaire. La commande accepte :
 
@@ -78,6 +89,20 @@ Les applications payantes, DRM, privées ou nécessitant une authentification ne
 
 - `.copiertexte` : en réponse à un message, renvoie uniquement son texte ou sa légende.
 - `.infosmessage` : affiche le type, l’expéditeur, l’identifiant, la date et le type de média du message cité.
+
+### Business, communauté et détente
+
+- `.calculmarge 5000 7500` : bénéfice, marge sur vente et majoration.
+- `.prixvente 5000 30` : calcule le prix conseillé pour une marge cible.
+- `.remise 20000 15` : calcule immédiatement le prix après réduction.
+- `.objectifvente 500000 175000` : suit la progression d'un objectif commercial.
+- `.relanceclient Nom | service | contexte` : prépare une relance client courte et professionnelle.
+- `.ficheclient Nom | contact | besoin | budget | note` : met les informations client en fiche claire.
+- `.comptermembres` : total du groupe, administrateurs et membres standards.
+- `.tiragemembre` : choisit au hasard un membre du groupe pour une animation ou un cadeau.
+- `.choisirhasard option 1 | option 2 | option 3` : tranche aléatoirement entre plusieurs choix.
+- `.questioncouple`, `.defirigolo`, `.verite`, `.gage`, `.compatibilite @personne`, `.blague` : animations légères et amusantes.
+
 
 ## Médias IA
 
@@ -113,7 +138,7 @@ Le moteur vocal est installé automatiquement pendant `npm ci`, donc aussi lors 
 - `.voix liste fr` : liste les voix disponibles pour une langue.
 - `.voix choisir fr-FR-DeniseNeural` : sélectionne une voix précise.
 - `.voix vitesse +10%` : règle la vitesse entre -50% et +50%.
-- `.voix reset` : rétablit la voix française masculine par défaut.
+- `.voix reinitialiser` : rétablit la voix française masculine par défaut.
 
 Les préférences sont enregistrées automatiquement par utilisateur dans `data/tts-preferences.json`. Le dossier `.venv-tts/` est local au serveur et ignoré par Git. Si le moteur n'a pas pu être préparé pendant une mise à jour, la première commande `.vocal` tente de le réparer automatiquement.
 
@@ -122,6 +147,7 @@ Les préférences sont enregistrées automatiquement par utilisateur dans `data/
 Bestla mémorise les statuts récents reçus par chaque session WhatsApp sans les envoyer à Assistantauto. Baileys exige des clés de messages individuelles pour marquer des éléments comme lus ; Bestla conserve donc automatiquement ces clés récentes et les traite en lot.
 
 - `.lirestatuts` : marque en une fois comme vus les statuts récents mémorisés par la session actuelle.
+- `.telechargerstatut` : en réponse directe à un statut, renvoie sa photo, sa vidéo ou son audio sous forme de média normal.
 - `.autostatuts activer` : marque automatiquement comme vus les nouveaux statuts à leur réception.
 - `.autostatuts desactiver` : arrête la lecture automatique.
 - `.autostatuts statut` : affiche l'état du réglage. Le choix est conservé après redémarrage et mise à jour.
@@ -148,10 +174,7 @@ Les messages provenant d'une autre session Bestla sont stoppés avant le routeur
 
 Bestla installe et entretient automatiquement `yt-dlp` pendant `npm ci`/mise à jour. Aucune clé API n'est demandée. FFmpeg, déjà installé par Bestla, sert à la fusion et à l'extraction audio.
 
-En discussion privée, deux usages sont possibles :
-
-1. colle uniquement le lien ; Bestla analyse le média puis affiche les qualités réellement détectées ;
-2. utilise `.telecharger <lien>` sans qualité ; Bestla affiche le même menu et tu réponds ensuite simplement `720p`, `1080p`, `best`, `audio 128k`, etc. Le choix reste disponible 10 minutes.
+En discussion privée, **aucun lien brut n'est analysé automatiquement et Assistantauto ignore aussi les messages contenant un lien sans commande**. Utilise une commande explicite. Avec `.telecharger <lien>` sans qualité, Bestla affiche le menu et tu réponds ensuite simplement `720p`, `1080p`, `best`, `audio 128k`, etc. Le choix reste disponible 10 minutes.
 
 - `.qualites <lien>` : inspecte les résolutions disponibles.
 - `.telecharger <lien>` : affiche d'abord le menu de qualités.

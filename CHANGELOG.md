@@ -1,3 +1,16 @@
+## 2026-08-18 — V18.0 — TextMaker premium, statuts, contrôle des liens et outils communauté/business
+
+- TextMaker V3 : les 17 commandes françaises utilisent désormais un arrière-plan premium généré par le moteur média IA déjà configuré dans Bestla, puis un texte exact superposé localement avec `sharp`. Le rendu V2 local reste le secours automatique.
+- Ajout de `.telechargerstatut` (`.enregistrerstatut`, `.sauverstatut`) : en réponse à un statut, Bestla récupère photo, vidéo ou audio et le renvoie comme média normal lorsque la session peut encore l'obtenir.
+- Correction de la reconstruction des messages cités afin de préserver `status@broadcast` lors d'une réponse à un statut.
+- Suppression du traitement automatique des liens bruts : un message contenant un lien HTTP(S) sans commande ne déclenche plus d'analyse, de téléchargement ni Assistantauto. Les commandes `.telecharger`, `.qualites`, `.telechargeraudio` et `.telechargerapk` sont nécessaires.
+- Ajout de `.comptermembres` / `.comptegroupe` pour compter total, administrateurs et membres standards.
+- Bienvenue enrichie : photo de profil visible si disponible, nom déjà connu ou mention de secours, nom du groupe et effectif actuel.
+- Ajout des outils business `.calculmarge`, `.prixvente`, `.remise`, `.objectifvente`, `.relanceclient`, `.ficheclient`.
+- Ajout des animations `.tiragemembre`, `.choisirhasard`, `.questioncouple`, `.defirigolo`, `.verite`, `.gage`, `.compatibilite`, `.blague`.
+- Francisation complémentaire : retrait de l'alias `.pp`, retrait de `.framevideo` et remplacement du sous-ordre affiché `.voix reset` par `.voix reinitialiser`.
+- Ajout de tests ciblés pour les réponses aux statuts et l'absence de déclenchement automatique par lien brut.
+
 ## 2026-08-17 — V17.9 — français intégral du menu, audio vue unique, TextMaker V2 et APK
 
 - Renommage des commandes V17.8 encore affichées en anglais : `.changerphotoprofil`, `.identifiantcontact`, `.identifiantgroupe`, `.quittergroupe`, `.appel`, `.legende`, `.effacer`, `.supprimer`, `.document`, `.enligne`, `.sondagewhatsapp`, `.lire`, `.programmerstatut`, `.publierstatut`, `.statuts` et `.recuperermedia`.
