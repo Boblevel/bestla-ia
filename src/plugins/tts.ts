@@ -55,7 +55,7 @@ export const ttsCommands: BotCommand[] = [
     name: 'voix',
     aliases: ['voixtts', 'languevoix'],
     description: 'Choisit la langue, la voix et la vitesse utilisées par .vocal.',
-    usage: 'langue <fr|en-ng|en|sw|ar...> | homme | femme | choisir <voix> | liste [langue] | vitesse <+10%> | reset',
+    usage: 'langue <fr|en-ng|en|sw|ar...> | homme | femme | choisir <voix> | liste [langue] | vitesse <+10%> | reinitialiser',
     category: 'Audio & Vidéo',
     cooldownSeconds: 3,
     async execute(ctx) {
@@ -67,7 +67,7 @@ export const ttsCommands: BotCommand[] = [
           const preference = await service.getPreference(ctx.sender)
           await ctx.reply(
             `Voix actuelle : *${preference.voice}*\nLangue : *${languageLabel(preference.locale)}*\nGenre : *${genderLabel(preference.gender)}*\nVitesse : *${preference.rate}*\n\n` +
-            `${ctx.prefix}voix langue fr\n${ctx.prefix}voix homme\n${ctx.prefix}voix femme\n${ctx.prefix}voix liste fr\n${ctx.prefix}voix choisir fr-FR-DeniseNeural\n${ctx.prefix}voix vitesse +10%\n${ctx.prefix}voix reset`,
+            `${ctx.prefix}voix langue fr\n${ctx.prefix}voix homme\n${ctx.prefix}voix femme\n${ctx.prefix}voix liste fr\n${ctx.prefix}voix choisir fr-FR-DeniseNeural\n${ctx.prefix}voix vitesse +10%\n${ctx.prefix}voix reinitialiser`,
           )
           return
         }
@@ -118,14 +118,14 @@ export const ttsCommands: BotCommand[] = [
           return
         }
 
-        if (action === 'reset' || action === 'reinitialiser' || action === 'réinitialiser') {
+        if (action === 'reinitialiser' || action === 'réinitialiser') {
           const preference = await service.resetPreference(ctx.sender)
           await ctx.reply(`Réglages vocaux réinitialisés : *${preference.voice}*`)
           return
         }
 
         await ctx.reply(
-          `Utilisation : ${ctx.prefix}voix langue fr | homme | femme | liste fr | choisir <voix> | vitesse +10% | reset`,
+          `Utilisation : ${ctx.prefix}voix langue fr | homme | femme | liste fr | choisir <voix> | vitesse +10% | reinitialiser`,
         )
       } catch (error) {
         await replyTtsError((message) => ctx.reply(message), error)

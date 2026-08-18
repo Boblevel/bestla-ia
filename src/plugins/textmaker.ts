@@ -1,4 +1,5 @@
 import sharp from 'sharp'
+import { MediaAiService } from '../core/media-ai.js'
 import type { BotCommand } from '../types.js'
 
 interface TextStyle {
@@ -29,6 +30,26 @@ const STYLES: Record<string, TextStyle> = {
   enseigne: { label: 'ENSEIGNE', background: ['#352316', '#805B38', '#2A1A0F'], foreground: '#FFF1CF', accent: '#E8B86D', accent2: '#F9DCA7', shadow: '#25160D', pattern: 'stripes' },
   tatouage: { label: 'TATOUAGE', background: ['#111111', '#292929', '#0A0A0A'], foreground: '#EFE4CF', accent: '#B38B59', accent2: '#E4D0AD', shadow: '#000000', pattern: 'none' },
   aquarelle: { label: 'AQUARELLE', background: ['#F7FBF8', '#DDEFFD', '#FFF6FA'], foreground: '#33344A', accent: '#FF8FB8', accent2: '#76B8E8', shadow: '#FFFFFF', pattern: 'none' },
+}
+
+const PREMIUM_BACKGROUNDS: Record<string, string> = {
+  '3d': 'luxury cinematic 3D studio, metallic gold and orange light, deep navy shadows, premium advertising poster',
+  ange: 'celestial clouds, soft blue heaven light, elegant golden halo glow, ethereal premium fantasy poster',
+  vengeur: 'epic superhero energy, red and blue cinematic lighting, dramatic sparks, blockbuster poster atmosphere',
+  bulle: 'glossy liquid bubbles, electric blue glass, iridescent reflections, futuristic premium advertising background',
+  rose: 'luxury pink neon, glossy silk and crystal highlights, elegant fashion campaign background',
+  chat: 'stylish feline silhouette atmosphere, warm amber studio light, premium playful poster background',
+  parasite: 'cyberpunk glitch, black technology panels, cyan and magenta digital distortion, hacker aesthetic',
+  paillettes: 'luxury glitter particles, violet velvet, gold dust, glamorous celebration background',
+  graffiti: 'urban graffiti wall, spray paint bursts, street art texture, bold premium hip-hop poster background',
+  pirate: 'dark green terminal glow, cyber security command center, matrix-like atmosphere, premium hacker poster',
+  lumiere: 'cinematic light beams, warm gold illumination, dark luxury studio, elegant glowing atmosphere',
+  superheros: 'heroic comic blockbuster background, red energy, gold sparks, dramatic cinematic depth',
+  neon: 'premium neon city light, cyan and magenta glow, glossy black reflections, futuristic nightclub poster',
+  sciencefiction: 'futuristic holographic interface, blue energy rings, deep space technology, cinematic sci-fi poster',
+  enseigne: 'luxury vintage illuminated sign, warm bulbs, dark wood and brass, premium storefront aesthetic',
+  tatouage: 'black ink ornamental tattoo studio, engraved texture, dramatic monochrome lighting, premium emblem background',
+  aquarelle: 'high-end watercolor wash, pastel pigments, elegant paper texture, artistic fashion editorial background',
 }
 
 function escapeXml(value: string): string {
@@ -161,19 +182,75 @@ function textSvg(styleName: string, rawText: string): Buffer {
   </svg>`)
 }
 
+function textOverlaySvg(styleName: string, rawText: string): Buffer {
+  const style = STYLES[styleName] ?? STYLES.neon!
+  const text = rawText.trim().slice(0, 160)
+  const lines = splitText(text || 'BESTLA')
+  const longest = Math.max(...lines.map((line) => line.length), 5)
+  const fontSize = Math.max(88, Math.min(190, Math.floor(1_030 / longest)))
+  const lineGap = Math.round(fontSize * 1.15)
+  const startY = 625 - ((lines.length - 1) * lineGap) / 2
+  const renderedText = textLayers(styleName, style, lines, fontSize, lineGap, startY)
+
+  return Buffer.from(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1280" viewBox="0 0 1280 1280">
+    <defs>
+      <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="12" dy="18" stdDeviation="14" flood-color="${style.shadow}" flood-opacity="0.95"/></filter>
+      <filter id="softGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      <filter id="blurGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="24"/></filter>
+    </defs>
+    <rect x="42" y="42" width="1196" height="1196" rx="64" fill="#000000" opacity="0.08" stroke="${style.accent}" stroke-opacity="0.72" stroke-width="5"/>
+    <rect x="68" y="68" width="1144" height="1144" rx="52" fill="none" stroke="${style.accent2}" stroke-opacity="0.42" stroke-width="2"/>
+    ${decorationSvg(styleName, style)}
+    ${renderedText}
+    <text x="640" y="1170" text-anchor="middle" font-family="DejaVu Sans, Arial, sans-serif" font-size="27" font-weight="800" fill="${style.accent}" letter-spacing="5">${style.label} • BESTLA iA</text>
+  </svg>`)
+}
+
+function premiumBackgroundPrompt(styleName: string): string {
+  const mood = PREMIUM_BACKGROUNDS[styleName] ?? PREMIUM_BACKGROUNDS.neon!
+  return [
+    'Square 1:1 premium graphic-design background for a typography poster.',
+    mood,
+    'Ultra detailed, professional art direction, strong depth, clean composition, high contrast, 4K look.',
+    'Keep the central area visually readable for a large title overlay.',
+    'Absolutely no text, no letters, no words, no logo, no watermark.',
+  ].join(' ')
+}
+
+async function renderPremiumTextMaker(ctx: Parameters<BotCommand['execute']>[0], styleName: string, text: string): Promise<Buffer> {
+  const service = new MediaAiService(ctx.config)
+  if (service.isConfigured()) {
+    try {
+      const generated = await service.generateImage(premiumBackgroundPrompt(styleName))
+      const darkener = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1280"><rect width="1280" height="1280" fill="#000" opacity="0.20"/></svg>')
+      return await sharp(generated.buffer)
+        .resize(1280, 1280, { fit: 'cover' })
+        .composite([{ input: darkener }, { input: textOverlaySvg(styleName, text) }])
+        .png({ compressionLevel: 9 })
+        .toBuffer()
+    } catch {
+      // Le fournisseur IA peut être temporairement limité. Le rendu local reste
+      // disponible afin de ne jamais casser les commandes TextMaker.
+    }
+  }
+  return sharp(textSvg(styleName, text)).png({ compressionLevel: 9 }).toBuffer()
+}
+
 function makeCommand(name: string): BotCommand {
   const label = STYLES[name]?.label ?? name.toUpperCase()
   return {
     name,
-    description: `Crée une image texte stylisée avec l’effet ${label}, sans clé API externe.`,
+    description: `Crée une affiche texte premium avec l’effet ${label}, un fond généré par IA et un texte net superposé.`,
     usage: '<texte>',
     category: 'Créateur de texte',
     cooldownSeconds: 6,
     async execute(ctx) {
       const text = ctx.argText.trim()
       if (!text) return void (await ctx.reply(`Utilisation : ${ctx.prefix}${name} Ton texte`))
-      const image = await sharp(textSvg(name, text)).png({ compressionLevel: 9 }).toBuffer()
-      await ctx.send({ image, caption: `Effet *${label}* créé par Bestla iA.` })
+      await ctx.reply(`Création de l’effet *${label}* en qualité premium…`)
+      const image = await renderPremiumTextMaker(ctx, name, text)
+      await ctx.send({ image, caption: `Effet *${label}* créé avec le nouveau moteur premium Bestla iA.` })
     },
   }
 }

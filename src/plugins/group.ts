@@ -250,6 +250,23 @@ export const groupCommands: BotCommand[] = [
     },
   },
   {
+    name: 'comptermembres',
+    aliases: ['comptegroupe'],
+    description: 'Compte précisément les membres et les administrateurs du groupe.',
+    category: 'Groupe',
+    groupOnly: true,
+    cooldownSeconds: 3,
+    async execute(ctx) {
+      const participants = ctx.groupMetadata?.participants ?? []
+      const total = ctx.groupMetadata?.size ?? participants.length
+      const admins = participants.filter((participant) => participant.admin).length
+      const standards = Math.max(0, total - admins)
+      await ctx.reply(
+        `👥 *EFFECTIF DU GROUPE*\n\nMembres : *${total}*\nAdministrateurs : *${admins}*\nMembres standards : *${standards}*`,
+      )
+    },
+  },
+  {
     name: 'reglement',
     aliases: ['regles'],
     description: 'Affiche ou configure le règlement permanent du groupe.',

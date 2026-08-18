@@ -18,6 +18,7 @@ import { whatsappCommands } from './whatsapp.js'
 import { ttsCommands } from './tts.js'
 import { textMakerCommands } from './textmaker.js'
 import { userCommands } from './user.js'
+import { utilityCommands } from './utilitaires.js'
 
 export function registerBuiltInCommands(registry: CommandRegistry): void {
   ;[
@@ -37,6 +38,7 @@ export function registerBuiltInCommands(registry: CommandRegistry): void {
     ...commerceCommands,
     ...gameCommands,
     ...textMakerCommands,
+    ...utilityCommands,
     ...userCommands,
     ...whatsappCommands,
     ...ownerCommands,

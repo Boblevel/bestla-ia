@@ -163,7 +163,7 @@ export const whatsappCommands: BotCommand[] = [
   },
   {
     name: 'photoprofil',
-    aliases: ['photo-profil', 'pp'],
+    aliases: ['photo-profil'],
     description: 'Envoie la photo de profil visible d’un contact ou de toi-même.',
     usage: '[@personne ou numéro]',
     category: 'WhatsApp',
@@ -526,11 +526,38 @@ ${jids.map(jidToMention).join('\n')}`, jids)
 
 ${ctx.prefix}lirestatuts
 ${ctx.prefix}autostatuts activer|desactiver|statut
+${ctx.prefix}telechargerstatut (en réponse au statut)
 ${ctx.prefix}publierstatut <texte>
 ${ctx.prefix}publierstatut (en réponse à une image/vidéo)
 ${ctx.prefix}programmerstatut
 
 Statuts mémorisés en attente : *${pendingStatusCount(ctx.sock)}*.`)
+    },
+  },
+  {
+    name: 'telechargerstatut',
+    aliases: ['enregistrerstatut', 'sauverstatut'],
+    description: 'Télécharge la photo, la vidéo ou l’audio d’un statut WhatsApp auquel tu réponds.',
+    usage: '(en réponse au statut)',
+    category: 'WhatsApp',
+    ownerOnly: true,
+    cooldownSeconds: 8,
+    async execute(ctx) {
+      const quoted = ctx.quotedMessage()
+      if (!quoted) return void (await ctx.reply(`Réponds au statut avec ${ctx.prefix}telechargerstatut.`))
+      const kind = findMedia(quoted)?.type
+      if (kind !== 'image' && kind !== 'video' && kind !== 'audio') {
+        return void (await ctx.reply('Ce statut ne contient pas de photo, vidéo ou audio téléchargeable.'))
+      }
+      try {
+        const media = await downloadMedia(quoted, ctx.config.maxMediaBytes, ctx.sock)
+        const source = quoted.key.remoteJid === 'status@broadcast' ? 'Statut WhatsApp enregistré.' : 'Média cité enregistré.'
+        if (media.type === 'image') await ctx.send({ image: media.buffer, caption: source })
+        else if (media.type === 'video') await ctx.send({ video: media.buffer, mimetype: media.mimetype, caption: source })
+        else await ctx.send({ audio: media.buffer, mimetype: media.mimetype, ptt: false })
+      } catch {
+        await ctx.reply('Impossible de récupérer ce statut. Il peut être expiré ou ne plus être disponible sur les appareils liés.')
+      }
     },
   },
   {

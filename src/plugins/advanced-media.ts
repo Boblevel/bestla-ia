@@ -243,7 +243,7 @@ export const advancedMediaCommands: BotCommand[] = [
   },
   {
     name: 'capturevideo',
-    aliases: ['framevideo', 'photodevideo'],
+    aliases: ['photodevideo'],
     description: 'Extrait une image précise d’une vidéo à la seconde choisie.',
     usage: '[seconde] (en réponse à une vidéo)',
     category: 'Audio & Vidéo',
