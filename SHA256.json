@@ -69,7 +69,7 @@
   "src/plugins/tts.ts": "365287d255009961246fda4476c4c33f0b268a4caa02de2fbaa4e4b9daa16a9b",
   "src/plugins/user.ts": "2bce9dad6357ec6f00c5c32f179886f463adc010e49aac84f47d0c11e2b539e1",
   "src/plugins/utilitaires.ts": "26596a02ab9a1828e2d3742843c5673c44e2648f897e4c1a2b2deff42aaba989",
-  "src/plugins/whatsapp.ts": "dfb1af50126b80ce84ad85a54a8c3fbd4e8e183b83e79a881318aec4d5bfdb7b",
+  "src/plugins/whatsapp.ts": "22a40e6805f620dbb7af5ab5ed776ff0e16ac318e640a7cafc57afdf5144cb33",
   "src/types.ts": "c8200d9b04a96eadad8a0283c5ba27fb3d9a716a352140b23cd2da28ec9054c8",
   "src/utils/brand.ts": "07616bcecd69e803d76621caadccba1639926f2564d898dc97b8950afa847d83",
   "src/utils/calculator.ts": "6544bf5d72fd9586db80b42e22ac5c9918eefbcf2c0f850f95a372d73d665e42",
