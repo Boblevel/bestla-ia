@@ -1,3 +1,11 @@
+## 2026-08-18 — V18.0.1 — correctif chirurgical statuts + TextMaker silencieux
+
+- `.telechargerstatut` privilégie maintenant le message de statut complet mémorisé par la session à partir du `stanzaId` de la réponse WhatsApp, au lieu de dépendre uniquement de l’aperçu cité dans la discussion privée.
+- Les statuts restent mémorisés en RAM jusqu’à 26 h même après avoir été marqués comme vus ; seule leur notion « en attente de lecture » change. Cela permet de les télécharger après `.lirestatuts` ou avec `.autostatuts` activé.
+- Le téléchargement de statut reste compatible photo, vidéo et audio et conserve le repli direct sur le message cité lorsque le message complet n’est pas dans la mémoire de la session.
+- Les 17 commandes TextMaker n’envoient plus les messages répétitifs « Création de l’effet… » ni la légende « Effet créé… » : une commande valide renvoie directement l’image générée.
+- Aucun autre comportement métier, groupe, téléchargement social, APK, IA, TTS ou automatisation n’a été modifié.
+
 ## 2026-08-18 — V18.0 — TextMaker premium, statuts, contrôle des liens et outils communauté/business
 
 - TextMaker V3 : les 17 commandes françaises utilisent désormais un arrière-plan premium généré par le moteur média IA déjà configuré dans Bestla, puis un texte exact superposé localement avec `sharp`. Le rendu V2 local reste le secours automatique.

@@ -13,6 +13,13 @@ bestla
 ```
 
 
+## V18.0.1 — correctif statuts et TextMaker silencieux
+
+- `.telechargerstatut` retrouve maintenant le **message complet du statut reçu par Bestla** grâce à son identifiant WhatsApp, même lorsque la réponse privée ne contient qu’un aperçu du statut.
+- Un statut reste disponible en mémoire de session jusqu’à 26 h même s’il a déjà été marqué comme vu par `.lirestatuts` ou `.autostatuts`.
+- Les commandes TextMaker (`.neon`, `.ange`, `.3d`, `.graffiti`, etc.) **renvoient directement l’image** : plus de message « Création de l’effet… » et plus de légende répétitive après génération.
+- Après un redémarrage du bot, la mémoire RAM des statuts repart à zéro ; un statut déjà reçu avant ce redémarrage peut donc dépendre uniquement des données encore présentes dans la réponse WhatsApp.
+
 ## V18.0 — TextMaker premium, statuts téléchargeables, liens sur commande et outils communauté/business
 
 - Le **Créateur de texte V3** n'utilise plus un simple fond local : Bestla demande un arrière-plan premium à son moteur média IA déjà configuré, puis superpose le texte exact localement avec `sharp`. Si le fournisseur IA est indisponible, le rendu local reste disponible en secours.
