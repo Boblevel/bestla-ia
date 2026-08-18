@@ -57,6 +57,7 @@ export class MessageRouter {
 
     const fromMe = message.key.fromMe === true
     const isGroup = chatId.endsWith('@g.us')
+    const isPrivateUser = chatId.endsWith('@s.whatsapp.net') || chatId.endsWith('@lid')
     const incomingSender = isGroup
       ? (message.key.participantAlt ?? message.key.participant ?? chatId)
       : (message.key.remoteJidAlt ?? message.key.participantAlt ?? message.key.participant ?? chatId)
@@ -100,6 +101,12 @@ export class MessageRouter {
 
     if (this.config.markRead && !fromMe) {
       await runtime.sock.readMessages([message.key]).catch(() => undefined)
+    }
+
+    if (isPrivateUser && !fromMe && this.db.getAutoEphemeral24h()) {
+      await runtime.sock.sendMessage(chatId, { disappearingMessagesInChat: 86_400 }).catch((error) => {
+        logger.warn({ err: error, session: runtime.name, chatId }, 'Activation automatique des messages éphémères 24 h impossible')
+      })
     }
 
     const prefix = this.db.getPrefix(this.config.prefix)

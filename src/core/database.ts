@@ -140,12 +140,13 @@ export interface WarningRecord {
 }
 
 interface DatabaseSchema {
-  version: 6
+  version: 7
   global: {
     publicMode: boolean | null
     prefix: string | null
     disabledCommands: string[]
     autoStatusView: boolean
+    autoEphemeral24h: boolean
   }
   groups: Record<string, GroupSettings>
   warnings: Record<string, Record<string, WarningRecord>>
@@ -215,8 +216,8 @@ const DEFAULT_AUTOMATION: AutomationSettings = {
 
 function initialData(): DatabaseSchema {
   return {
-    version: 6,
-    global: { publicMode: null, prefix: null, disabledCommands: [], autoStatusView: false },
+    version: 7,
+    global: { publicMode: null, prefix: null, disabledCommands: [], autoStatusView: false, autoEphemeral24h: false },
     groups: {},
     warnings: {},
     automation: cloneAutomation(DEFAULT_AUTOMATION),
@@ -280,12 +281,13 @@ export class JsonDatabase {
       this.data = {
         ...initialData(),
         ...parsed,
-        version: 6,
+        version: 7,
         global: {
           ...initialData().global,
           ...parsed.global,
           disabledCommands: parsed.global?.disabledCommands ?? [],
           autoStatusView: parsed.global?.autoStatusView ?? false,
+          autoEphemeral24h: parsed.global?.autoEphemeral24h ?? false,
         },
         groups: parsed.groups ?? {},
         warnings: parsed.warnings ?? {},
@@ -357,6 +359,16 @@ export class JsonDatabase {
   async setAutoStatusView(value: boolean): Promise<void> {
     await this.mutate((data) => {
       data.global.autoStatusView = value
+    })
+  }
+
+  getAutoEphemeral24h(): boolean {
+    return this.data.global.autoEphemeral24h
+  }
+
+  async setAutoEphemeral24h(value: boolean): Promise<void> {
+    await this.mutate((data) => {
+      data.global.autoEphemeral24h = value
     })
   }
 
