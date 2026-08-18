@@ -587,6 +587,64 @@ Statuts mémorisés en attente : *${pendingStatusCount(ctx.sock)}*.`)
     },
   },
   {
+    name: 'envoyervueunique',
+    aliases: ['transfervueunique'],
+    description: 'Envoie la photo, la vidéo ou l’audio cité à un numéro en vraie vue unique, sans texte ni mention chez le destinataire.',
+    usage: '<numéro> (en réponse à une photo, vidéo ou audio)',
+    category: 'WhatsApp',
+    ownerOnly: true,
+    cooldownSeconds: 5,
+    async execute(ctx) {
+      const source = selectedMediaMessage(ctx)
+      if (!source) return void (await ctx.reply(`Réponds à une photo, vidéo ou audio avec ${ctx.prefix}envoyervueunique 22670000000.`))
+      const kind = findMedia(source)?.type
+      if (kind !== 'image' && kind !== 'video' && kind !== 'audio') {
+        return void (await ctx.reply('Cette commande accepte uniquement une photo, une vidéo ou un audio.'))
+      }
+
+      const requestedTarget = phoneToJid(ctx.args[0] ?? '') ?? ctx.targetUser()
+      if (!requestedTarget || requestedTarget.endsWith('@g.us')) {
+        return void (await ctx.reply(`Indique le numéro du destinataire : ${ctx.prefix}envoyervueunique 22670000000`))
+      }
+
+      const lookup = await ctx.sock.onWhatsApp(requestedTarget).catch(() => [])
+      const destination = lookup.find((entry) => entry.exists)?.jid ?? requestedTarget
+      const media = await downloadMedia(source, ctx.config.maxMediaBytes, ctx.sock)
+
+      if (media.type === 'image') {
+        await ctx.sock.sendMessage(destination, { image: media.buffer, viewOnce: true })
+      } else if (media.type === 'video') {
+        await ctx.sock.sendMessage(destination, { video: media.buffer, mimetype: media.mimetype, viewOnce: true })
+      } else {
+        await ctx.sock.sendMessage(destination, { audio: media.buffer, mimetype: media.mimetype, ptt: false, viewOnce: true })
+      }
+    },
+  },
+  {
+    name: 'ephemereauto',
+    aliases: ['messagesephemeresauto'],
+    description: 'Active automatiquement les messages éphémères 24 h pour toute personne qui écrit en privé.',
+    usage: 'activer|desactiver|statut',
+    category: 'WhatsApp',
+    ownerOnly: true,
+    cooldownSeconds: 3,
+    async execute(ctx) {
+      const action = ctx.args[0]?.toLowerCase()
+      if (action === 'statut') {
+        return void (await ctx.reply(`Messages éphémères automatiques 24 h : *${ctx.db.getAutoEphemeral24h() ? 'ACTIVÉS' : 'DÉSACTIVÉS'}*.`))
+      }
+      if (action !== 'activer' && action !== 'desactiver') {
+        return void (await ctx.reply(`Utilisation : ${ctx.prefix}ephemereauto activer|desactiver|statut`))
+      }
+
+      const enabled = action === 'activer'
+      await ctx.db.setAutoEphemeral24h(enabled)
+      await ctx.reply(enabled
+        ? 'Messages éphémères automatiques activés : chaque discussion privée entrante sera réglée sur *24 h*.'
+        : 'Messages éphémères automatiques désactivés pour les prochaines discussions entrantes.')
+    },
+  },
+  {
     name: 'copiertexte',
     description: 'Copie le texte ou la légende du message auquel tu réponds.',
     usage: '(en réponse à un message texte, une image ou une vidéo avec légende)',
