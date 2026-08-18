@@ -43,3 +43,19 @@ test('V18.0 ajoute statut, effectif, bienvenue enrichie et outils business/déte
     'tiragemembre', 'choisirhasard', 'questioncouple', 'defirigolo', 'verite', 'gage', 'compatibilite', 'blague',
   ]) assert.match(utilities, new RegExp(`name: '${command}'`))
 })
+
+test('V18.0.1 télécharge le statut depuis le message complet mémorisé et garde TextMaker silencieux', async () => {
+  const [whatsapp, statusViewer, textmaker] = await Promise.all([
+    source('../src/plugins/whatsapp.ts'),
+    source('../src/core/status-viewer.ts'),
+    source('../src/plugins/textmaker.ts'),
+  ])
+  assert.match(whatsapp, /resolveRememberedStatusMessage\(ctx\.sock, quoted\)/)
+  assert.match(statusViewer, /message: WAMessage/)
+  assert.match(statusViewer, /read: boolean/)
+  assert.match(statusViewer, /resolveRememberedStatusMessage/)
+  assert.equal(textmaker.includes('Création de l’effet'), false)
+  assert.equal(textmaker.includes('créé avec le nouveau moteur premium'), false)
+  assert.match(textmaker, /await ctx\.send\(\{ image \}\)/)
+})
+

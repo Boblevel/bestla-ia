@@ -6,6 +6,7 @@ import {
   pendingStatusCount,
   readRememberedStatuses,
   rememberStatusMessage,
+  resolveRememberedStatusMessage,
 } from '../src/core/status-viewer.js'
 
 function statusMessage(id: string, remoteJid = 'status@broadcast'): WAMessage {
@@ -44,6 +45,39 @@ test('mémorise puis marque tous les statuts récents comme lus en un lot', asyn
   assert.deepEqual(result, { read: 2, failed: 0, pendingBefore: 2 })
   assert.equal(pendingStatusCount(sock), 0)
   assert.deepEqual(batches, [['one', 'two']])
+})
+
+
+test('conserve le message complet après lecture pour permettre le téléchargement du statut cité', async () => {
+  const sock = {
+    async readMessages() {},
+  } as unknown as WASocket
+  const original = statusMessage('media-status')
+  original.message = {
+    imageMessage: {
+      url: 'https://mmg.whatsapp.net/media',
+      directPath: '/v/t62/example',
+      mediaKey: Buffer.alloc(32, 1),
+      mimetype: 'image/jpeg',
+    },
+  }
+  assert.equal(rememberStatusMessage(sock, original), true)
+  const read = await readRememberedStatuses(sock)
+  assert.equal(read.read, 1)
+  assert.equal(pendingStatusCount(sock), 0)
+
+  const quotedPreview = {
+    key: {
+      id: 'media-status',
+      remoteJid: '22670000000@s.whatsapp.net',
+      participant: '22670000000@s.whatsapp.net',
+      fromMe: false,
+    },
+    message: { conversation: 'aperçu de statut' },
+  } as WAMessage
+  const resolved = resolveRememberedStatusMessage(sock, quotedPreview)
+  assert.equal(resolved, original)
+  assert.ok(resolved?.message?.imageMessage)
 })
 
 test('ignore les messages privés ordinaires et les vieux statuts', () => {
