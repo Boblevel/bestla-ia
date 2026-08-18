@@ -31,7 +31,10 @@ export function mentionedJids(message: WAMessage): string[] {
 export function quotedAsMessage(message: WAMessage): WAMessage | undefined {
   const context = contextInfo(message)
   if (!context?.quotedMessage) return undefined
-  const remoteJid = message.key.remoteJid ?? null
+  // Quand une personne répond à un statut, WhatsApp conserve le vrai chat
+  // d'origine dans contextInfo.remoteJid (= status@broadcast). Le préserver
+  // permet ensuite à downloadMediaMessage de reconstruire une clé correcte.
+  const remoteJid = context.remoteJid ?? message.key.remoteJid ?? null
   return {
     key: {
       remoteJid,
