@@ -6,7 +6,9 @@ const READ_BATCH_SIZE = 50
 
 type StoredStatus = {
   key: WAMessageKey
+  message: WAMessage
   receivedAt: number
+  read: boolean
 }
 
 const statusStores = new WeakMap<WASocket, Map<string, StoredStatus>>()
@@ -56,7 +58,13 @@ export function rememberStatusMessage(sock: WASocket, message: WAMessage): boole
   if (timestampMs > 0 && now - timestampMs > STATUS_TTL_MS) return false
   const store = statusStore(sock)
   prune(store, now)
-  store.set(id, { key: { ...message.key }, receivedAt: timestampMs > 0 ? timestampMs : now })
+  const previous = store.get(id)
+  store.set(id, {
+    key: { ...message.key },
+    message,
+    receivedAt: timestampMs > 0 ? timestampMs : now,
+    read: previous?.read ?? false,
+  })
   prune(store)
   return true
 }
@@ -64,7 +72,40 @@ export function rememberStatusMessage(sock: WASocket, message: WAMessage): boole
 export function pendingStatusCount(sock: WASocket): number {
   const store = statusStore(sock)
   prune(store)
-  return store.size
+  return [...store.values()].filter((item) => !item.read).length
+}
+
+/**
+ * Retrouve le message de statut complet mémorisé à partir de la référence citée
+ * dans une discussion privée. WhatsApp peut n'inclure qu'un aperçu du statut
+ * dans quotedMessage ; le stanzaId reste alors la clé fiable pour retrouver le
+ * vrai message média reçu auparavant sur status@broadcast.
+ */
+export function resolveRememberedStatusMessage(sock: WASocket, reference: WAMessage): WAMessage | undefined {
+  const id = reference.key.id
+  if (!id) return undefined
+  const store = statusStore(sock)
+  prune(store)
+
+  const exact = statusIdentity(reference.key)
+  if (exact) {
+    const found = store.get(exact)
+    if (found) return found.message
+  }
+
+  const participant = reference.key.participant ?? reference.key.participantAlt ?? reference.key.remoteJidAlt
+  for (const item of store.values()) {
+    if (item.key.id !== id) continue
+    const storedParticipant = item.key.participant ?? item.key.participantAlt ?? item.key.remoteJidAlt
+    if (!participant || !storedParticipant || participant === storedParticipant) return item.message
+  }
+
+  // Les identifiants de message WhatsApp sont suffisamment spécifiques pour
+  // servir de dernier repli lorsque le client a converti le participant JID/LID.
+  for (const item of store.values()) {
+    if (item.key.id === id) return item.message
+  }
+  return undefined
 }
 
 export async function markStatusMessageRead(sock: WASocket, message: WAMessage): Promise<boolean> {
@@ -72,7 +113,11 @@ export async function markStatusMessageRead(sock: WASocket, message: WAMessage):
   const id = statusIdentity(message.key)
   try {
     await sock.readMessages([message.key])
-    if (id) statusStore(sock).delete(id)
+    if (id) {
+      const store = statusStore(sock)
+      const item = store.get(id)
+      if (item) item.read = true
+    }
     return true
   } catch {
     return false
@@ -84,7 +129,7 @@ export async function readRememberedStatuses(
 ): Promise<{ read: number; failed: number; pendingBefore: number }> {
   const store = statusStore(sock)
   prune(store)
-  const entries = [...store.entries()]
+  const entries = [...store.entries()].filter(([, item]) => !item.read)
   const pendingBefore = entries.length
   let read = 0
   let failed = 0
@@ -95,7 +140,7 @@ export async function readRememberedStatuses(
     try {
       await sock.readMessages(keys)
       read += chunk.length
-      for (const [id] of chunk) store.delete(id)
+      for (const [, item] of chunk) item.read = true
       continue
     } catch {
       // Certains serveurs WhatsApp peuvent refuser un lot contenant une clé devenue
@@ -105,7 +150,7 @@ export async function readRememberedStatuses(
     for (const [id, item] of chunk) {
       try {
         await sock.readMessages([item.key])
-        store.delete(id)
+        item.read = true
         read += 1
       } catch {
         failed += 1
