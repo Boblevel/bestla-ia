@@ -5,7 +5,7 @@ import type { BotCommand, CommandContext } from '../types.js'
 import type { ScheduledJob } from '../core/database.js'
 import { jidToMention, phoneToJid } from '../utils/jid.js'
 import { safeFetchBuffer } from '../utils/safe-fetch.js'
-import { pendingStatusCount, readRememberedStatuses } from '../core/status-viewer.js'
+import { pendingStatusCount, readRememberedStatuses, resolveRememberedStatusMessage } from '../core/status-viewer.js'
 import { downloadMedia, findMedia } from '../utils/message.js'
 import { messageText, messageType } from '../utils/text.js'
 
@@ -545,18 +545,22 @@ Statuts mémorisés en attente : *${pendingStatusCount(ctx.sock)}*.`)
     async execute(ctx) {
       const quoted = ctx.quotedMessage()
       if (!quoted) return void (await ctx.reply(`Réponds au statut avec ${ctx.prefix}telechargerstatut.`))
-      const kind = findMedia(quoted)?.type
+
+      // Dans une discussion privée, WhatsApp peut ne citer qu'un aperçu du statut.
+      // On privilégie donc le message complet mémorisé lors de sa réception sur
+      // status@broadcast, même si le statut a déjà été marqué comme vu.
+      const sourceMessage = resolveRememberedStatusMessage(ctx.sock, quoted) ?? quoted
+      const kind = findMedia(sourceMessage)?.type
       if (kind !== 'image' && kind !== 'video' && kind !== 'audio') {
         return void (await ctx.reply('Ce statut ne contient pas de photo, vidéo ou audio téléchargeable.'))
       }
       try {
-        const media = await downloadMedia(quoted, ctx.config.maxMediaBytes, ctx.sock)
-        const source = quoted.key.remoteJid === 'status@broadcast' ? 'Statut WhatsApp enregistré.' : 'Média cité enregistré.'
-        if (media.type === 'image') await ctx.send({ image: media.buffer, caption: source })
-        else if (media.type === 'video') await ctx.send({ video: media.buffer, mimetype: media.mimetype, caption: source })
+        const media = await downloadMedia(sourceMessage, ctx.config.maxMediaBytes, ctx.sock)
+        if (media.type === 'image') await ctx.send({ image: media.buffer })
+        else if (media.type === 'video') await ctx.send({ video: media.buffer, mimetype: media.mimetype })
         else await ctx.send({ audio: media.buffer, mimetype: media.mimetype, ptt: false })
       } catch {
-        await ctx.reply('Impossible de récupérer ce statut. Il peut être expiré ou ne plus être disponible sur les appareils liés.')
+        await ctx.reply('Impossible de récupérer ce statut. Il peut être expiré, avoir été reçu avant le dernier redémarrage du bot ou ne plus être disponible sur WhatsApp.')
       }
     },
   },

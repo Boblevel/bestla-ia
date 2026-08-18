@@ -248,9 +248,8 @@ function makeCommand(name: string): BotCommand {
     async execute(ctx) {
       const text = ctx.argText.trim()
       if (!text) return void (await ctx.reply(`Utilisation : ${ctx.prefix}${name} Ton texte`))
-      await ctx.reply(`Création de l’effet *${label}* en qualité premium…`)
       const image = await renderPremiumTextMaker(ctx, name, text)
-      await ctx.send({ image, caption: `Effet *${label}* créé avec le nouveau moteur premium Bestla iA.` })
+      await ctx.send({ image })
     },
   }
 }
