@@ -233,6 +233,11 @@ export class MessageRouter {
     }
 
     if (!parsed.isCommand || !this.config.commandsEnabled) return
+
+    // Sécurité : Bestla est un bot privé. Toute commande provenant d'un autre
+    // utilisateur que le propriétaire configuré est ignorée silencieusement.
+    if (!isOwner) return
+
     const command = this.registry.get(parsed.name)
     if (!command) return
     if (command.name !== 'commande' && !this.db.isCommandEnabled(command.name)) {
