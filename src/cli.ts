@@ -176,11 +176,22 @@ class ProgressDisplay {
   }
 
   private render(label: string, spinner = ''): void {
-    const width = 28
+    // Garde toute la progression sur une seule ligne, même sur un terminal mobile étroit.
+    // Une ligne trop longue se repliait visuellement et chaque rafraîchissement semblait
+    // ajouter une nouvelle barre verticale dans Termius/Termux.
+    const terminalColumns = Math.max(36, output.columns ?? 80)
+    const suffix = spinner ? ` ${spinner}` : ''
+    const percentText = `${String(this.current).padStart(3, ' ')}%`
+    const reserved = percentText.length + suffix.length + 8
+    const maxLabelWidth = Math.max(10, Math.min(26, terminalColumns - reserved - 10))
+    const compactLabel = label.length > maxLabelWidth
+      ? `${label.slice(0, Math.max(1, maxLabelWidth - 1))}…`
+      : label
+    const width = Math.max(8, Math.min(20, terminalColumns - reserved - compactLabel.length))
     const filled = Math.floor((this.current * width) / 100)
     const empty = Math.max(0, width - filled)
     const bar = `${'█'.repeat(filled)}${'░'.repeat(empty)}`
-    const line = `${cyan(`[${bar}]`)} ${green(`${String(this.current).padStart(3, ' ')}%`)}  ${label}${spinner ? ` ${spinner}` : ''}`
+    const line = `${cyan(`[${bar}]`)} ${green(percentText)} ${compactLabel}${suffix}`
     if (output.isTTY) output.write(`\r\u001b[2K${line}`)
     else print(line)
   }
