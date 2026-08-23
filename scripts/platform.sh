@@ -13,7 +13,23 @@ bestla_progress_draw() {
   local percent="${1:-0}"
   local label="${2:-Traitement}"
   local spinner="${3:-}"
-  local width=28
+  # Barre volontairement compacte pour rester sur UNE ligne sur mobile/SSH.
+  # Le format précédent pouvait dépasser la largeur du terminal, se replier puis
+  # donner l'impression que la progression se répétait verticalement.
+  local columns=80
+  if [ -t 1 ] && command -v tput >/dev/null 2>&1; then
+    columns="$(tput cols 2>/dev/null || printf '80')"
+  fi
+  [ "$columns" -lt 36 ] && columns=36
+  local max_label=$((columns - 31))
+  [ "$max_label" -lt 10 ] && max_label=10
+  [ "$max_label" -gt 26 ] && max_label=26
+  if [ "${#label}" -gt "$max_label" ]; then
+    label="${label:0:$((max_label - 1))}…"
+  fi
+  local width=$((columns - ${#label} - 14))
+  [ "$width" -lt 8 ] && width=8
+  [ "$width" -gt 20 ] && width=20
   local filled=$((percent * width / 100))
   local empty=$((width - filled))
   local bar_fill bar_empty
@@ -22,9 +38,9 @@ bestla_progress_draw() {
   bar_fill="${bar_fill// /█}"
   bar_empty="${bar_empty// /░}"
   if [ -t 1 ] && [ "${TERM:-}" != "dumb" ]; then
-    printf '\r\033[2K\033[38;5;45m%s\033[0m \033[38;5;42m%3d%%\033[0m  %-34s %s' "[$bar_fill$bar_empty]" "$percent" "$label" "$spinner"
+    printf '\r\033[2K\033[38;5;45m%s\033[0m \033[38;5;42m%3d%%\033[0m %s%s' "[$bar_fill$bar_empty]" "$percent" "$label" "${spinner:+ $spinner}"
   else
-    printf '\r[%s%s] %3d%%  %-34s %s' "$bar_fill" "$bar_empty" "$percent" "$label" "$spinner"
+    printf '\r[%s%s] %3d%% %s%s' "$bar_fill" "$bar_empty" "$percent" "$label" "${spinner:+ $spinner}"
   fi
 }
 
