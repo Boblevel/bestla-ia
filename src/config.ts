@@ -26,6 +26,9 @@ const schema = z.object({
   WARN_LIMIT: z.coerce.number().int().min(1).max(20).default(3),
   MAX_MEDIA_MB: z.coerce.number().int().min(1).max(100).default(20),
   MAX_APK_MB: z.coerce.number().int().min(1).max(200).default(100),
+  MEDIA_ARCHIVE_ENABLED: booleanFromEnv.default(true),
+  MEDIA_ARCHIVE_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(90),
+  MEDIA_ARCHIVE_BACKFILL_DAYS: z.coerce.number().int().min(0).max(90).default(30),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   TIMEZONE: z.string().default('Africa/Ouagadougou'),
   API_ENABLED: booleanFromEnv.default(false),
@@ -142,6 +145,7 @@ export interface AppConfig {
   warnLimit: number
   maxMediaBytes: number
   maxApkBytes: number
+  mediaArchive: { enabled: boolean; retentionDays: number; backfillDays: number }
   logLevel: string
   timezone: string
   api: { enabled: boolean; host: string; port: number; key: string; rateLimitPerMinute: number }
@@ -192,6 +196,11 @@ export const config: AppConfig = {
   warnLimit: env.WARN_LIMIT,
   maxMediaBytes: env.MAX_MEDIA_MB * 1024 * 1024,
   maxApkBytes: env.MAX_APK_MB * 1024 * 1024,
+  mediaArchive: {
+    enabled: env.MEDIA_ARCHIVE_ENABLED,
+    retentionDays: env.MEDIA_ARCHIVE_RETENTION_DAYS,
+    backfillDays: env.MEDIA_ARCHIVE_BACKFILL_DAYS,
+  },
   logLevel: env.LOG_LEVEL,
   timezone: env.TIMEZONE,
   api: { enabled: env.API_ENABLED, host: env.API_HOST, port: env.API_PORT, key: env.API_KEY, rateLimitPerMinute: env.API_RATE_LIMIT_PER_MINUTE },
