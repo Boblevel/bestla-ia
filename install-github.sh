@@ -11,16 +11,16 @@ SPINNER_INDEX=0
 
 progress_draw() {
   local percent="$1" label="$2" spinner="${3:-}"
-  local width=28 filled=$((percent * width / 100)) empty
+  local width=20 filled=$((percent * width / 100)) empty
   local a b
   empty=$((width - filled))
   printf -v a '%*s' "$filled" ''
   printf -v b '%*s' "$empty" ''
   a="${a// /█}"; b="${b// /░}"
   if [ -t 1 ] && [ "${TERM:-}" != "dumb" ]; then
-    printf '\r\033[2K\033[38;5;45m[%s%s]\033[0m \033[38;5;42m%3d%%\033[0m  %-34s %s' "$a" "$b" "$percent" "$label" "$spinner"
+    printf '\r\033[2K\033[38;5;45m[%s%s]\033[0m \033[38;5;42m%3d%%\033[0m %s %s' "$a" "$b" "$percent" "$label" "$spinner"
   else
-    printf '\r[%s%s] %3d%%  %-34s %s' "$a" "$b" "$percent" "$label" "$spinner"
+    printf '\r[%s%s] %3d%% %s %s' "$a" "$b" "$percent" "$label" "$spinner"
   fi
 }
 
