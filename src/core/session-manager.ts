@@ -15,6 +15,7 @@ import type { AppConfig } from '../config.js'
 import type { SessionStatus } from '../types.js'
 import { normalizeUserJid } from '../utils/jid.js'
 import { baileysLogger, logger } from './logger.js'
+import { archiveMediaMessage, cleanupMediaArchive } from './media-archive.js'
 import { isWhatsAppStatusMessage, markStatusMessageRead, rememberStatusMessage } from './status-viewer.js'
 
 export interface SessionRuntime {
@@ -188,6 +189,12 @@ export class SessionManager {
     this.sessions.set(name, session)
     const runtime = this.runtime(session)
 
+    if (this.config.mediaArchive.enabled) {
+      await cleanupMediaArchive(this.config, name).catch((error) => {
+        logger.warn({ err: error, session: name }, 'Nettoyage initial de l’archive média impossible')
+      })
+    }
+
     sock.ev.on('creds.update', saveCreds)
     sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
       if (qr && !state.creds.registered) {
@@ -300,6 +307,20 @@ export class SessionManager {
           }
           // Les statuts ne sont jamais envoyés au routeur de commandes/Assistantauto.
           continue
+        }
+
+        const archiveBackfill =
+          type === 'append' &&
+          this.config.mediaArchive.backfillDays > 0 &&
+          Number.isFinite(ageMs) &&
+          ageMs <= this.config.mediaArchive.backfillDays * 86_400_000
+        if (this.config.mediaArchive.enabled && (type === 'notify' || recentAppend || archiveBackfill)) {
+          await archiveMediaMessage(this.config, name, message, sock).catch((error) => {
+            logger.debug(
+              { err: error, session: name, messageId: message.key.id ?? null },
+              'Média non archivé (indisponible, trop volumineux ou non média)',
+            )
+          })
         }
 
         // "notify" est le chemin normal des nouveaux messages. Certains flux récents
