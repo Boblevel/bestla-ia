@@ -7,6 +7,7 @@ import { jidToMention, phoneToJid, sameUser } from '../utils/jid.js'
 import { logger } from '../core/logger.js'
 import { safeFetchBuffer } from '../utils/safe-fetch.js'
 import { pendingStatusCount, readRememberedStatuses, resolveRememberedStatusMessage } from '../core/status-viewer.js'
+import { archiveMediaMessage, cleanupMediaArchive, getArchivedMedia, mediaArchiveStats, readArchivedMedia } from '../core/media-archive.js'
 import { downloadMedia, findMedia } from '../utils/message.js'
 import { messageText, messageType } from '../utils/text.js'
 
@@ -128,9 +129,50 @@ function fileExtension(mimetype: string): string {
   const known: Record<string, string> = {
     'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
     'video/mp4': 'mp4', 'audio/mpeg': 'mp3', 'audio/ogg': 'ogg',
-    'application/pdf': 'pdf',
+    'application/pdf': 'pdf', 'application/vnd.android.package-archive': 'apk',
   }
   return known[mimetype.toLowerCase()] ?? mimetype.split('/')[1]?.split(';')[0]?.replace(/[^a-z0-9]/gi, '') ?? 'bin'
+}
+
+function mediaFileName(source: ReturnType<typeof selectedMediaMessage>, mimetype: string): string {
+  const media = source ? findMedia(source) : undefined
+  const node = media?.node as ({ fileName?: string | null } | undefined)
+  const original = node?.fileName?.trim()
+  if (original) return original.replace(/[\\/:*?"<>|\r\n]/g, '_').slice(0, 120)
+  return `bestla_media.${fileExtension(mimetype)}`
+}
+
+async function sendRecoveredMedia(
+  ctx: CommandContext,
+  media: { buffer: Buffer; type: string; mimetype: string; fileName?: string },
+): Promise<void> {
+  if (media.type === 'image') {
+    await ctx.send({ image: media.buffer, caption: 'Média récupéré par Bestla iA.' })
+    return
+  }
+  if (media.type === 'video') {
+    await ctx.send({ video: media.buffer, mimetype: media.mimetype, caption: 'Média récupéré par Bestla iA.' })
+    return
+  }
+  if (media.type === 'audio') {
+    await ctx.send({ audio: media.buffer, mimetype: media.mimetype, ptt: false })
+    return
+  }
+  if (media.type === 'sticker') {
+    await ctx.send({ sticker: media.buffer })
+    return
+  }
+  await ctx.send({
+    document: media.buffer,
+    mimetype: media.mimetype || 'application/octet-stream',
+    fileName: media.fileName || `bestla_fichier.${fileExtension(media.mimetype)}`,
+  })
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} o`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`
 }
 
 async function deleteQuotedMessage(ctx: CommandContext): Promise<boolean> {
@@ -608,24 +650,124 @@ Statuts mémorisés en attente : *${pendingStatusCount(ctx.sock)}*.`)
   },
   {
     name: 'recuperermedia',
-    description: 'Récupère une photo, une vidéo ou un audio en vue unique ou expiré si WhatsApp peut encore le réenvoyer.',
-    usage: '(en réponse au média)',
+    aliases: ['restaurermedia', 'ancienmedia', 'recupererfichier'],
+    description: 'Récupère une photo, vidéo, audio, document ou APK cité, avec repli sur l’archive locale Bestla.',
+    usage: '(en réponse au média ou fichier)',
     category: 'WhatsApp',
     ownerOnly: true,
     cooldownSeconds: 8,
     async execute(ctx) {
       const source = selectedMediaMessage(ctx)
-      if (!source) return void (await ctx.reply(`Réponds à la photo, vidéo ou audio avec ${ctx.prefix}recuperermedia.`))
+      if (!source) return void (await ctx.reply(`Réponds à la photo, vidéo, audio ou au fichier avec ${ctx.prefix}recuperermedia.`))
       const kind = findMedia(source)?.type
-      if (kind !== 'image' && kind !== 'video' && kind !== 'audio') return void (await ctx.reply('Cette commande accepte uniquement les photos, vidéos et audios.'))
+      if (!kind) return void (await ctx.reply('Ce message ne contient aucun média ou fichier récupérable.'))
+
       try {
-        const media = await downloadMedia(source, ctx.config.maxMediaBytes, ctx.sock)
-        if (media.type === 'image') await ctx.send({ image: media.buffer, caption: 'Média récupéré par Bestla iA.' })
-        else if (media.type === 'video') await ctx.send({ video: media.buffer, mimetype: media.mimetype, caption: 'Média récupéré par Bestla iA.' })
-        else await ctx.send({ audio: media.buffer, mimetype: media.mimetype, ptt: false })
+        const media = await downloadMedia(source, Math.max(ctx.config.maxMediaBytes, ctx.config.maxApkBytes), ctx.sock)
+        await sendRecoveredMedia(ctx, {
+          ...media,
+          fileName: mediaFileName(source, media.mimetype),
+        })
+        return
       } catch {
-        await ctx.reply('Le média n’est plus récupérable. Bestla a demandé une réémission à WhatsApp, mais aucun appareil lié n’a pu fournir le fichier.')
+        // Si WhatsApp ne peut plus réémettre le fichier, on tente la copie locale.
       }
+
+      const archived = await getArchivedMedia(ctx.config, ctx.sessionName, source.key.id)
+      if (!archived) {
+        await ctx.reply([
+          'Le média n’est plus récupérable depuis WhatsApp et aucune copie locale Bestla n’existe pour ce message.',
+          'Important : l’archivage protège surtout les médias reçus après l’installation de ce correctif. Un ancien fichier déjà expiré avant cette mise à jour ne peut pas être recréé s’il n’existe plus sur WhatsApp ou sur un appareil lié.',
+        ].join('\n'))
+        return
+      }
+
+      const buffer = await readArchivedMedia(archived)
+      await sendRecoveredMedia(ctx, {
+        buffer,
+        type: archived.type,
+        mimetype: archived.mimetype,
+        fileName: archived.fileName,
+      })
+    },
+  },
+  {
+    name: 'sauvegardermedia',
+    aliases: ['archivermedia', 'sauvegarderfichier'],
+    description: 'Force la sauvegarde locale du média ou fichier cité afin de pouvoir le récupérer après expiration WhatsApp.',
+    usage: '(en réponse au média ou fichier)',
+    category: 'WhatsApp',
+    ownerOnly: true,
+    cooldownSeconds: 5,
+    async execute(ctx) {
+      const source = selectedMediaMessage(ctx)
+      if (!source) return void (await ctx.reply(`Réponds au média ou fichier avec ${ctx.prefix}sauvegardermedia.`))
+      try {
+        const archived = await archiveMediaMessage(ctx.config, ctx.sessionName, source, ctx.sock)
+        if (!archived) return void (await ctx.reply('Archivage média désactivé ou message sans média.'))
+        await ctx.reply(`Copie locale enregistrée : *${archived.fileName}* (${formatBytes(archived.size)}).`)
+      } catch {
+        await ctx.reply('Impossible de sauvegarder ce fichier : WhatsApp ne peut déjà plus fournir son contenu ou il dépasse la limite configurée.')
+      }
+    },
+  },
+  {
+    name: 'archiveinfo',
+    aliases: ['infomediaarchive'],
+    description: 'Indique si le média ou fichier cité possède déjà une copie locale Bestla.',
+    usage: '(en réponse au média ou fichier)',
+    category: 'WhatsApp',
+    ownerOnly: true,
+    cooldownSeconds: 3,
+    async execute(ctx) {
+      const source = selectedMediaMessage(ctx)
+      if (!source) return void (await ctx.reply(`Réponds au média ou fichier avec ${ctx.prefix}archiveinfo.`))
+      const archived = await getArchivedMedia(ctx.config, ctx.sessionName, source.key.id)
+      if (!archived) return void (await ctx.reply('Aucune copie locale Bestla trouvée pour ce message.'))
+      const archivedAt = new Date(archived.archivedAt).toLocaleString('fr-FR', { timeZone: ctx.config.timezone })
+      await ctx.reply([
+        '*ARCHIVE MÉDIA*',
+        `Fichier : *${archived.fileName}*`,
+        `Type : *${archived.type}*`,
+        `Taille : *${formatBytes(archived.size)}*`,
+        `Sauvegardé : *${archivedAt}*`,
+      ].join('\n'))
+    },
+  },
+  {
+    name: 'archivesmedia',
+    aliases: ['statutarchives'],
+    description: 'Affiche l’état et l’espace utilisé par les copies locales de médias de la session.',
+    category: 'WhatsApp',
+    ownerOnly: true,
+    cooldownSeconds: 3,
+    async execute(ctx) {
+      const stats = await mediaArchiveStats(ctx.config, ctx.sessionName)
+      await ctx.reply([
+        '*ARCHIVES MÉDIA BESTLA*',
+        `Archivage automatique : *${ctx.config.mediaArchive.enabled ? 'ACTIVÉ' : 'DÉSACTIVÉ'}*`,
+        `Fichiers conservés : *${stats.files}*`,
+        `Espace utilisé : *${formatBytes(stats.bytes)}*`,
+        `Conservation : *${ctx.config.mediaArchive.retentionDays} jours*`,
+        `Rattrapage historique : *${ctx.config.mediaArchive.backfillDays} jours*`,
+      ].join('\n'))
+    },
+  },
+  {
+    name: 'nettoyerarchives',
+    aliases: ['purgerarchivesmedia'],
+    description: 'Supprime les copies locales de médias plus anciennes que le nombre de jours demandé.',
+    usage: '[jours]',
+    category: 'WhatsApp',
+    ownerOnly: true,
+    cooldownSeconds: 5,
+    async execute(ctx) {
+      const requested = ctx.args[0] ? Number(ctx.args[0]) : ctx.config.mediaArchive.retentionDays
+      if (!Number.isInteger(requested) || requested < 1 || requested > 3650) {
+        return void (await ctx.reply(`Utilisation : ${ctx.prefix}nettoyerarchives [jours entre 1 et 3650]`))
+      }
+      const removed = await cleanupMediaArchive(ctx.config, ctx.sessionName, requested)
+      await ctx.reply(`${removed} archive(s) média plus ancienne(s) que ${requested} jour(s) supprimée(s).`)
     },
   },
   {
