@@ -68,3 +68,23 @@ test('le panneau retire sessions et propriétaires par choix numérique', async 
   assert.match(cli, /Choisis le numéro du propriétaire à retirer/)
   assert.match(cli, /owners\[selected - 1\]/)
 })
+
+
+test('les commandes hors Jeux répondent sans citer la commande, les jeux gardent la citation', async () => {
+  const router = await readFile(new URL('../src/core/router.ts', import.meta.url), 'utf8')
+  assert.match(router, /command\.category === 'Jeux'/)
+  assert.match(router, /reply: commandReply/)
+  assert.match(router, /send: commandSend/)
+  assert.match(router, /runtime\.send\(chatId, content, options\)/)
+})
+
+test('generervideo utilise une vraie génération Veo sans secours image locale', async () => {
+  const media = await readFile(new URL('../src/core/media-ai.ts', import.meta.url), 'utf8')
+  const config = await readFile(new URL('../src/config.ts', import.meta.url), 'utf8')
+  const generateBlock = media.slice(media.indexOf('async generateVideo'), media.indexOf('async editVideo'))
+  assert.match(generateBlock, /veoTextVideoRequest\(prompt\)/)
+  assert.doesNotMatch(generateBlock, /generateImage\(prompt\)/)
+  assert.match(media, /:predictLongRunning/)
+  assert.match(media, /generatedSamples/)
+  assert.match(config, /veo-3\.1-generate-preview/)
+})

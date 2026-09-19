@@ -121,6 +121,23 @@ function extractGeminiVideo(payload: unknown): VideoOutput | undefined {
   return undefined
 }
 
+function extractVeoVideo(payload: unknown): VideoOutput | undefined {
+  const root = record(payload)
+  const response = record(root?.response)
+  const generateVideoResponse = record(response?.generateVideoResponse)
+  const samples = Array.isArray(generateVideoResponse?.generatedSamples) ? generateVideoResponse.generatedSamples : []
+  const sample = record(samples[0])
+  const video = record(sample?.video)
+  const uri = stringValue(video?.uri)
+  const data = stringValue(video?.videoBytes) ?? stringValue(video?.data)
+  if (!uri && !data) return undefined
+  return {
+    ...(uri ? { uri } : {}),
+    ...(data ? { data } : {}),
+    mimetype: stringValue(video?.mimeType) ?? stringValue(video?.mime_type) ?? 'video/mp4',
+  }
+}
+
 function extractCloudflareImage(payload: unknown): { data: string; mimetype: string } | undefined {
   const root = record(payload)
   const result = record(root?.result)
@@ -256,17 +273,25 @@ export class MediaAiService {
   async generateVideo(prompt: string, image?: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
     if (!this.config.mediaAi.enabled) throw new MediaAiError('La génération média IA est désactivée.')
 
-    if (this.videoConfigured()) {
-      try {
-        return await this.geminiVideoRequest(prompt, image ? { kind: 'image', ...image } : undefined)
-      } catch {
-        // Reprend le comportement fiable de l’ancienne version : courte vidéo locale
-        // à partir d’une image si le fournisseur vidéo refuse/quota/billing/indisponibilité.
+    // Pour le texte -> vidéo, on exige désormais une vraie génération vidéo IA.
+    // Aucun secours image + zoom FFmpeg n’est utilisé : une erreur fournisseur est
+    // renvoyée telle quelle au lieu de présenter une image animée comme une vidéo IA.
+    if (!image) {
+      if (!this.videoConfigured()) {
+        throw new MediaAiError('La vraie génération vidéo IA nécessite une clé Gemini valide et le fournisseur vidéo activé.')
       }
+      return this.veoTextVideoRequest(prompt)
     }
 
-    const source = image ?? await this.generateImage(prompt)
-    return this.animateImageLocally(source)
+    // Le comportement image -> vidéo existant reste inchangé.
+    if (this.videoConfigured()) {
+      try {
+        return await this.geminiVideoRequest(prompt, { kind: 'image', ...image })
+      } catch {
+        // Secours local conservé uniquement pour l’animation d’image existante.
+      }
+    }
+    return this.animateImageLocally(image)
   }
 
   async editVideo(prompt: string, video: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
@@ -427,6 +452,61 @@ export class MediaAiService {
       throw new MediaAiError('Les Workers Cloudflare image sont temporairement en attente après une limite de quota. Réessaie un peu plus tard.')
     }
     throw lastError ?? new MediaAiError('Tous les Workers Cloudflare image sont temporairement indisponibles.')
+  }
+
+  private async veoTextVideoRequest(prompt: string): Promise<{ buffer: Buffer; mimetype: string }> {
+    if (!this.videoConfigured()) throw new MediaAiError('Gemini vidéo n’est pas configuré.')
+    const text = prompt.trim().slice(0, 4_000)
+    if (!text) throw new MediaAiError('Le prompt vidéo est vide.')
+
+    const timeoutMs = this.config.mediaAi.videoTimeoutSeconds * 1_000
+    const deadline = Date.now() + timeoutMs
+    const model = this.config.mediaAi.videoModel
+    const response = await fetch(`${this.geminiBaseUrl}/models/${encodeURIComponent(model)}:predictLongRunning`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(Math.min(timeoutMs, 120_000)),
+      headers: { 'x-goog-api-key': this.config.mediaAi.apiKey, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        instances: [{ prompt: text }],
+        parameters: {
+          aspectRatio: this.config.mediaAi.videoAspectRatio,
+          numberOfVideos: 1,
+          resolution: '720p',
+        },
+      }),
+    })
+    let payload = await responseJson(response)
+    if (!response.ok) throw mediaError('gemini', response.status, payload)
+
+    const operationName = stringValue(record(payload)?.name)
+    if (!operationName) throw new MediaAiError('Gemini n’a pas renvoyé d’identifiant de génération vidéo.')
+
+    while (Date.now() < deadline) {
+      const operation = record(payload)
+      const operationError = record(operation?.error)
+      if (operationError) {
+        throw new MediaAiError(providerMessage(payload) ?? 'La génération vidéo Gemini a échoué.')
+      }
+
+      if (operation?.done === true) {
+        const output = extractVeoVideo(payload)
+        if (!output) throw new MediaAiError('Gemini a terminé la génération sans renvoyer de vidéo exploitable.')
+        if (output.data) return { buffer: Buffer.from(output.data, 'base64'), mimetype: output.mimetype || 'video/mp4' }
+        if (!output.uri) throw new MediaAiError('Gemini n’a pas renvoyé de vidéo téléchargeable.')
+        return downloadGemini(output.uri, this.config.mediaAi.apiKey)
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 10_000))
+      const remaining = Math.max(1_000, deadline - Date.now())
+      const statusResponse = await fetch(`${this.geminiBaseUrl}/${operationName}`, {
+        signal: AbortSignal.timeout(Math.min(45_000, remaining)),
+        headers: { 'x-goog-api-key': this.config.mediaAi.apiKey },
+      })
+      payload = await responseJson(statusResponse)
+      if (!statusResponse.ok) throw mediaError('gemini', statusResponse.status, payload)
+    }
+
+    throw new MediaAiError(`La génération vidéo a dépassé ${this.config.mediaAi.videoTimeoutSeconds} secondes.`)
   }
 
   private async geminiVideoRequest(

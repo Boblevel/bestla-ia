@@ -58,7 +58,7 @@ const schema = z.object({
   MEDIA_AI_IMAGE_EDIT_MODEL: z.string().default('gemini-3.1-flash-image'),
   MEDIA_AI_IMAGE_ASPECT_RATIO: z.string().default('1:1'),
   MEDIA_AI_IMAGE_SIZE: z.enum(['512px', '1K', '2K', '4K']).default('1K'),
-  MEDIA_AI_VIDEO_MODEL: z.string().default('gemini-omni-flash-preview'),
+  MEDIA_AI_VIDEO_MODEL: z.string().default('veo-3.1-generate-preview'),
   MEDIA_AI_VIDEO_ASPECT_RATIO: z.enum(['9:16', '16:9']).default('9:16'),
   MEDIA_AI_VIDEO_TIMEOUT_SECONDS: z.coerce.number().int().min(60).max(1_800).default(900),
 }).superRefine((value, ctx) => {
@@ -123,6 +123,16 @@ const LEGACY_GEMINI_TEXT_MODELS = new Set([
 function normalizeGeminiTextModel(value: string): string {
   const model = value.trim()
   if (!model || LEGACY_GEMINI_TEXT_MODELS.has(model)) return 'gemini-3.6-flash'
+  return model
+}
+
+const LEGACY_GEMINI_VIDEO_MODELS = new Set([
+  'gemini-omni-flash-preview',
+])
+
+function normalizeGeminiVideoModel(value: string): string {
+  const model = value.trim()
+  if (!model || LEGACY_GEMINI_VIDEO_MODELS.has(model)) return 'veo-3.1-generate-preview'
   return model
 }
 
@@ -225,7 +235,7 @@ export const config: AppConfig = {
     imageEditModel: env.MEDIA_AI_IMAGE_EDIT_MODEL.trim() || 'gemini-3.1-flash-image',
     imageAspectRatio: env.MEDIA_AI_IMAGE_ASPECT_RATIO.trim(),
     imageSize: env.MEDIA_AI_IMAGE_SIZE,
-    videoModel: env.MEDIA_AI_VIDEO_MODEL.trim() || 'gemini-omni-flash-preview',
+    videoModel: normalizeGeminiVideoModel(env.MEDIA_AI_VIDEO_MODEL),
     videoAspectRatio: env.MEDIA_AI_VIDEO_ASPECT_RATIO,
     videoTimeoutSeconds: env.MEDIA_AI_VIDEO_TIMEOUT_SECONDS,
   },

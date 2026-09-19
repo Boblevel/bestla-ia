@@ -240,19 +240,31 @@ export class MessageRouter {
 
     const command = this.registry.get(parsed.name)
     if (!command) return
+
+    // Les commandes classiques répondent comme de nouveaux messages.
+    // Les jeux gardent volontairement la réponse citée pour préserver l’interaction.
+    const commandSend: CommandContext['send'] = (content, options) => {
+      if (options?.quoted) return runtime.send(chatId, content, options)
+      if (command.category === 'Jeux') {
+        return runtime.send(chatId, content, { ...(options ?? {}), quoted: message })
+      }
+      return runtime.send(chatId, content, options)
+    }
+    const commandReply: CommandContext['reply'] = (text, mentions = []) =>
+      commandSend({ text: signText(text, this.config), ...(mentions.length > 0 ? { mentions } : {}) })
     if (command.name !== 'commande' && !this.db.isCommandEnabled(command.name)) {
-      if (isOwner) await reply(`La commande *${prefix}${command.name}* est désactivée. Réactive-la avec *${prefix}commande activer ${command.name}*.`)
+      if (isOwner) await commandReply(`La commande *${prefix}${command.name}* est désactivée. Réactive-la avec *${prefix}commande activer ${command.name}*.`)
       return
     }
     if (!this.db.getPublicMode(this.config.publicMode) && !isOwner) return
 
-    if (command.ownerOnly && !isOwner) return void (await reply('Cette commande est réservée au propriétaire.'))
-    if (command.groupOnly && !isGroup) return void (await reply('Cette commande fonctionne uniquement dans un groupe.'))
+    if (command.ownerOnly && !isOwner) return void (await commandReply('Cette commande est réservée au propriétaire.'))
+    if (command.groupOnly && !isGroup) return void (await commandReply('Cette commande fonctionne uniquement dans un groupe.'))
     if (command.adminOnly && !isAdmin && !isOwner) {
-      return void (await reply('Cette commande est réservée aux administrateurs du groupe.'))
+      return void (await commandReply('Cette commande est réservée aux administrateurs du groupe.'))
     }
     if (command.botAdminRequired && !isBotAdmin) {
-      return void (await reply('Je dois être administrateur du groupe pour exécuter cette commande.'))
+      return void (await commandReply('Je dois être administrateur du groupe pour exécuter cette commande.'))
     }
 
     const cooldown = this.cooldowns.consume(
@@ -260,7 +272,7 @@ export class MessageRouter {
       command.cooldownSeconds ?? 2,
     )
     if (cooldown > 0 && !isOwner) {
-      return void (await reply(`Patiente encore ${cooldown}s avant de réutiliser cette commande.`))
+      return void (await commandReply(`Patiente encore ${cooldown}s avant de réutiliser cette commande.`))
     }
 
     const context: CommandContext = {
@@ -282,8 +294,8 @@ export class MessageRouter {
       config: this.config,
       db: this.db,
       registry: this.registry,
-      reply,
-      send,
+      reply: commandReply,
+      send: commandSend,
       react: async (emoji) => {
         await runtime.send(chatId, { react: { text: emoji, key: message.key } })
       },
@@ -313,7 +325,7 @@ export class MessageRouter {
         { err: error, command: command.name, session: runtime.name, chatId },
         'Erreur pendant une commande',
       )
-      await reply('Une erreur est survenue pendant cette commande. Consulte les journaux du serveur.')
+      await commandReply('Une erreur est survenue pendant cette commande. Consulte les journaux du serveur.')
     } finally {
       if (!commandControlsPresence) {
         await runtime.sock.sendPresenceUpdate('paused', chatId).catch(() => undefined)
