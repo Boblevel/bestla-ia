@@ -8,7 +8,6 @@ import { CENTRAL_CLOUDFLARE_IMAGE_WORKERS, type CentralCloudflareImageWorker } f
 export class MediaAiError extends Error {}
 
 type JsonRecord = Record<string, unknown>
-type VideoOutput = { data?: string; uri?: string; mimetype: string }
 
 const cloudflareCooldowns = new Map<string, number>()
 
@@ -147,59 +146,6 @@ function extractGeminiImage(payload: unknown): { data: string; mimetype: string 
   return undefined
 }
 
-function extractGeminiVideo(payload: unknown): VideoOutput | undefined {
-  const root = record(payload)
-  for (const key of ['output_video', 'outputVideo']) {
-    const video = record(root?.[key])
-    const data = stringValue(video?.data)
-    const uri = stringValue(video?.uri)
-    if (data || uri) {
-      return {
-        ...(data ? { data } : {}),
-        ...(uri ? { uri } : {}),
-        mimetype: stringValue(video?.mime_type) ?? stringValue(video?.mimeType) ?? 'video/mp4',
-      }
-    }
-  }
-  const steps = Array.isArray(root?.steps) ? root.steps : []
-  for (let index = steps.length - 1; index >= 0; index -= 1) {
-    const step = record(steps[index])
-    if (stringValue(step?.type)?.toLowerCase() !== 'model_output') continue
-    const content = Array.isArray(step?.content) ? step.content : []
-    for (const raw of content) {
-      const item = record(raw)
-      if (stringValue(item?.type)?.toLowerCase() !== 'video') continue
-      const data = stringValue(item?.data)
-      const uri = stringValue(item?.uri)
-      if (data || uri) {
-        return {
-          ...(data ? { data } : {}),
-          ...(uri ? { uri } : {}),
-          mimetype: stringValue(item?.mime_type) ?? stringValue(item?.mimeType) ?? 'video/mp4',
-        }
-      }
-    }
-  }
-  return undefined
-}
-
-function extractVeoVideo(payload: unknown): VideoOutput | undefined {
-  const root = record(payload)
-  const response = record(root?.response)
-  const generateVideoResponse = record(response?.generateVideoResponse)
-  const samples = Array.isArray(generateVideoResponse?.generatedSamples) ? generateVideoResponse.generatedSamples : []
-  const sample = record(samples[0])
-  const video = record(sample?.video)
-  const uri = stringValue(video?.uri)
-  const data = stringValue(video?.videoBytes) ?? stringValue(video?.data)
-  if (!uri && !data) return undefined
-  return {
-    ...(uri ? { uri } : {}),
-    ...(data ? { data } : {}),
-    mimetype: stringValue(video?.mimeType) ?? stringValue(video?.mime_type) ?? 'video/mp4',
-  }
-}
-
 function extractCloudflareImage(payload: unknown): { data: string; mimetype: string } | undefined {
   const root = record(payload)
   const result = record(root?.result)
@@ -207,23 +153,6 @@ function extractCloudflareImage(payload: unknown): { data: string; mimetype: str
   const data = stringValue(target?.image)
   if (!data) return undefined
   return { data, mimetype: stringValue(target?.mime_type) ?? stringValue(target?.mimeType) ?? 'image/jpeg' }
-}
-
-function fileIdFromUri(uri: string): string | undefined {
-  const match = uri.match(/\/files\/([^/:?]+)/i)
-  return match?.[1] ? decodeURIComponent(match[1]) : undefined
-}
-
-async function downloadGemini(url: string, apiKey: string, maxBytes = 100 * 1024 * 1024): Promise<{ buffer: Buffer; mimetype: string }> {
-  const parsed = new URL(url)
-  if (parsed.protocol !== 'https:') throw new MediaAiError('Gemini a renvoyé une URL vidéo non sécurisée.')
-  const response = await fetch(parsed, {
-    redirect: 'follow',
-    signal: AbortSignal.timeout(120_000),
-    headers: { 'x-goog-api-key': apiKey },
-  })
-  if (!response.ok) throw new MediaAiError(`Téléchargement de la vidéo Gemini impossible (${response.status}).`)
-  return responseBuffer(response, maxBytes)
 }
 
 async function runFfmpeg(args: string[]): Promise<void> {
@@ -518,38 +447,54 @@ export class MediaAiService {
       : { width: 1024, height: 576 }
   }
 
+  private huggingFaceVideoParameterValue(parameter: JsonRecord | undefined, prompt: string): unknown {
+    if (!parameter) return undefined
+    const name = stringValue(parameter.parameter_name) ?? stringValue(parameter.name) ?? stringValue(parameter.label) ?? ''
+    const lower = name.toLowerCase()
+    const { width, height } = this.aspectRatioDimensions()
+
+    if (/(^|_)prompt$/.test(lower) || lower === 'text' || lower === 'input_text') return prompt
+    if (lower.includes('negative')) return 'worst quality, inconsistent motion, blurry, jittery, distorted'
+    if (lower === 'seed') return 0
+    if (lower.includes('randomize') && lower.includes('seed')) return true
+    if (lower === 'width' || lower === 'width_ui') return width
+    if (lower === 'height' || lower === 'height_ui') return height
+    if (lower === 'mode' || lower === 'task') return 'text-to-video'
+    if (lower.includes('aspect')) return this.config.mediaAi.videoAspectRatio
+    if (lower === 'num_frames' || lower === 'frames') return 81
+    if (lower.includes('inference') && lower.includes('step')) return 20
+    if (lower === 'duration' || lower === 'duration_seconds' || lower === 'duration_ui') return 5
+    if (lower === 'fps') return 24
+    if (lower.includes('guidance') || lower === 'cfg' || lower === 'cfg_scale') return 3
+    if (lower === 'model') return this.config.mediaAi.videoModel
+    if (lower === 'resolution') return '720p'
+
+    if ('default' in parameter) return parameter.default
+    const props = record(parameter.props)
+    if (props && 'value' in props) return props.value
+    const componentProps = record(parameter.component_props)
+    if (componentProps && 'value' in componentProps) return componentProps.value
+    return null
+  }
+
   private buildHuggingFaceVideoPayload(schema: unknown, prompt: string): Record<string, unknown> {
     const payload: Record<string, unknown> = { prompt }
     const endpoint = record(schema)
     const parameters = Array.isArray(endpoint?.parameters) ? endpoint.parameters : []
-    const { width, height } = this.aspectRatioDimensions()
     for (const raw of parameters) {
       const parameter = record(raw)
       const name = stringValue(parameter?.parameter_name) ?? stringValue(parameter?.name) ?? stringValue(parameter?.label)
       if (!name) continue
-      const key = name
-      const lower = key.toLowerCase()
-      if (key in payload) continue
-      if (/(^|_)prompt$/.test(lower) || lower === 'text' || lower === 'input_text') payload[key] = prompt
-      else if (lower.includes('negative')) payload[key] = ''
-      else if (lower === 'seed') payload[key] = 0
-      else if (lower.includes('randomize') && lower.includes('seed')) payload[key] = true
-      else if (lower === 'width') payload[key] = width
-      else if (lower === 'height') payload[key] = height
-      else if (lower.includes('aspect')) payload[key] = this.config.mediaAi.videoAspectRatio
-      else if (lower === 'num_frames' || lower === 'frames') payload[key] = 81
-      else if (lower.includes('inference') && lower.includes('step')) payload[key] = 20
-      else if (lower === 'duration' || lower === 'duration_seconds') payload[key] = 5
-      else if (lower === 'fps') payload[key] = 24
-      else if (lower.includes('guidance') || lower === 'cfg' || lower === 'cfg_scale') payload[key] = 3
-      else if (lower === 'model') payload[key] = this.config.mediaAi.videoModel
-      else if (lower === 'resolution') payload[key] = '720p'
-      else {
-        const defaultValue = parameter ? (parameter['default'] ?? record(parameter.props)?.value ?? record(parameter.component_props)?.value) : undefined
-        if (defaultValue !== undefined) payload[key] = defaultValue
-      }
+      payload[name] = this.huggingFaceVideoParameterValue(parameter, prompt)
     }
     return payload
+  }
+
+  private buildHuggingFaceLegacyData(schema: unknown, prompt: string): unknown[] {
+    const endpoint = record(schema)
+    const parameters = Array.isArray(endpoint?.parameters) ? endpoint.parameters : []
+    if (!parameters.length) return [prompt]
+    return parameters.map((raw) => this.huggingFaceVideoParameterValue(record(raw), prompt))
   }
 
   private async huggingFaceSpaceInfo(): Promise<unknown> {
@@ -568,6 +513,10 @@ export class MediaAiService {
     const desired = this.config.mediaAi.videoApiName
     const desiredKey = desired.startsWith('/') ? desired : `/${desired}`
     if (named) {
+      // Le Space LTX officiel expose explicitement /text_to_video.
+      // On le privilégie même si une ancienne configuration contenait /predict.
+      const textToVideo = record(named['/text_to_video']) ?? record(named.text_to_video)
+      if (textToVideo) return { apiName: '/text_to_video', schema: textToVideo }
       const exact = record(named[desiredKey]) ?? record(named[desiredKey.slice(1)])
       if (exact) return { apiName: desiredKey, schema: exact }
       for (const [key, raw] of Object.entries(named)) {
@@ -661,15 +610,35 @@ export class MediaAiService {
     const info = await this.huggingFaceSpaceInfo()
     const endpoint = this.resolveHuggingFaceEndpoint(info)
     const apiSegment = normalizedApiSegment(endpoint.apiName)
-    const requestBody = this.buildHuggingFaceVideoPayload(endpoint.schema, text)
-    const response = await fetch(`${this.config.mediaAi.videoSpace}/gradio_api/call/v2/${apiSegment}`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(Math.min(timeoutMs, 120_000)),
-      headers: this.huggingFaceHeaders(true),
-      body: JSON.stringify(requestBody),
-    })
-    const payload = await responseJson(response)
-    if (!response.ok) throw mediaError('huggingface', response.status, payload)
+    const namedPayload = this.buildHuggingFaceVideoPayload(endpoint.schema, text)
+    const legacyPayload = { data: this.buildHuggingFaceLegacyData(endpoint.schema, text) }
+    const attempts = [
+      { url: `${this.config.mediaAi.videoSpace}/gradio_api/call/${apiSegment}`, body: legacyPayload },
+      { url: `${this.config.mediaAi.videoSpace}/gradio_api/call/v2/${apiSegment}`, body: namedPayload },
+      { url: `${this.config.mediaAi.videoSpace}/api/predict/${apiSegment}`, body: legacyPayload },
+    ]
+
+    let payload: unknown = {}
+    let lastStatus = 0
+    for (const attempt of attempts) {
+      const response = await fetch(attempt.url, {
+        method: 'POST',
+        signal: AbortSignal.timeout(Math.min(timeoutMs, 120_000)),
+        headers: this.huggingFaceHeaders(true),
+        body: JSON.stringify(attempt.body),
+      })
+      payload = await responseJson(response)
+      if (response.ok) {
+        lastStatus = 0
+        break
+      }
+      lastStatus = response.status
+      // Les versions Gradio n’exposent pas toutes la même route d’appel.
+      // 404/405 = route absente ; 422 = format de requête différent : on tente la suivante.
+      if (![404, 405, 422].includes(response.status)) throw mediaError('huggingface', response.status, payload)
+    }
+    if (lastStatus !== 0) throw mediaError('huggingface', lastStatus, payload)
+
     const root = record(payload)
     const eventId = stringValue(root?.event_id) ?? stringValue(root?.eventId)
     if (!eventId) {
@@ -681,72 +650,5 @@ export class MediaAiService {
     return this.downloadHuggingFace(file.url)
   }
 
-  private async geminiVideoRequest(
-    prompt: string,
-    source?: { kind: 'image' | 'video'; buffer: Buffer; mimetype: string },
-  ): Promise<{ buffer: Buffer; mimetype: string }> {
-    if (!this.videoConfigured()) throw new MediaAiError('Gemini vidéo n’est pas configuré.')
-    const text = prompt.trim().slice(0, 4_000)
-    if (!text) throw new MediaAiError('Le prompt vidéo est vide.')
-    const input: unknown = source
-      ? source.kind === 'video'
-        ? [{ type: 'user_input', content: [{ type: 'video', mime_type: source.mimetype || 'video/mp4', data: source.buffer.toString('base64') }, { type: 'text', text }] }]
-        : [{ type: 'image', mime_type: normalizeImageMime(source.mimetype), data: source.buffer.toString('base64') }, { type: 'text', text }]
-      : text
-    const task = source?.kind === 'image' ? 'image_to_video' : source?.kind === 'video' ? 'edit' : 'text_to_video'
-    const timeoutMs = this.config.mediaAi.videoTimeoutSeconds * 1_000
-    const deadline = Date.now() + timeoutMs
-    const response = await fetch(`${this.geminiBaseUrl}/interactions`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(timeoutMs),
-      headers: { 'x-goog-api-key': this.config.mediaAi.apiKey, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: this.config.mediaAi.videoModel,
-        input,
-        response_format: { type: 'video', aspect_ratio: this.config.mediaAi.videoAspectRatio, delivery: 'uri' },
-        generation_config: { video_config: { task } },
-        background: false,
-        store: false,
-        stream: false,
-      }),
-    })
-    let payload = await responseJson(response)
-    if (!response.ok) throw mediaError('gemini', response.status, payload)
-    let output = extractGeminiVideo(payload)
-    const interactionId = stringValue(record(payload)?.id)
-    while (!output && interactionId && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, 5_000))
-      const statusResponse = await fetch(`${this.geminiBaseUrl}/interactions/${encodeURIComponent(interactionId)}`, {
-        signal: AbortSignal.timeout(Math.min(45_000, Math.max(1_000, deadline - Date.now()))),
-        headers: { 'x-goog-api-key': this.config.mediaAi.apiKey },
-      })
-      payload = await responseJson(statusResponse)
-      if (!statusResponse.ok) throw mediaError('gemini', statusResponse.status, payload)
-      const status = stringValue(record(payload)?.status)?.toLowerCase()
-      if (status === 'failed' || status === 'cancelled') throw new MediaAiError(providerMessage(payload) ?? 'La génération vidéo Gemini a échoué.')
-      output = extractGeminiVideo(payload)
-      if (output || status === 'completed') break
-    }
-    if (!output) throw new MediaAiError(`La génération vidéo n’a pas produit de fichier avant ${this.config.mediaAi.videoTimeoutSeconds} secondes.`)
-    if (output.data) return { buffer: Buffer.from(output.data, 'base64'), mimetype: output.mimetype || 'video/mp4' }
-    if (!output.uri) throw new MediaAiError('Gemini n’a pas renvoyé de vidéo téléchargeable.')
-    const fileId = fileIdFromUri(output.uri)
-    if (fileId) {
-      while (Date.now() < deadline) {
-        const fileResponse = await fetch(`${this.geminiBaseUrl}/files/${encodeURIComponent(fileId)}`, {
-          signal: AbortSignal.timeout(Math.min(45_000, Math.max(1_000, deadline - Date.now()))),
-          headers: { 'x-goog-api-key': this.config.mediaAi.apiKey },
-        })
-        const filePayload = await responseJson(fileResponse)
-        if (!fileResponse.ok) throw mediaError('gemini', fileResponse.status, filePayload)
-        const state = stringValue(record(filePayload)?.state)?.toUpperCase()
-        if (state === 'FAILED') throw new MediaAiError('Le traitement final de la vidéo Gemini a échoué.')
-        if (state === 'ACTIVE' || !state) break
-        await new Promise((resolve) => setTimeout(resolve, 5_000))
-      }
-      if (Date.now() >= deadline) throw new MediaAiError(`La génération vidéo a dépassé ${this.config.mediaAi.videoTimeoutSeconds} secondes.`)
-      return downloadGemini(`${this.geminiBaseUrl}/files/${encodeURIComponent(fileId)}:download?alt=media`, this.config.mediaAi.apiKey)
-    }
-    return downloadGemini(output.uri, this.config.mediaAi.apiKey)
-  }
+
 }

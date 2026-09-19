@@ -62,7 +62,7 @@ const schema = z.object({
   MEDIA_AI_IMAGE_SIZE: z.enum(['512px', '1K', '2K', '4K']).default('1K'),
   MEDIA_AI_VIDEO_MODEL: z.string().default('Lightricks/LTX-Video'),
   MEDIA_AI_VIDEO_SPACE: z.string().default('https://lightricks-ltx-video-distilled.hf.space'),
-  MEDIA_AI_VIDEO_API_NAME: z.string().default('/predict'),
+  MEDIA_AI_VIDEO_API_NAME: z.string().default('/text_to_video'),
   MEDIA_AI_VIDEO_ASPECT_RATIO: z.enum(['9:16', '16:9']).default('9:16'),
   MEDIA_AI_VIDEO_TIMEOUT_SECONDS: z.coerce.number().int().min(60).max(1_800).default(900),
 }).superRefine((value, ctx) => {
@@ -143,7 +143,7 @@ function normalizeHuggingFaceSpaceUrl(value: string): string {
 
 function normalizeHuggingFaceApiName(value: string): string {
   const apiName = value.trim()
-  if (!apiName) return '/predict'
+  if (!apiName) return '/text_to_video'
   return apiName.startsWith('/') ? apiName : `/${apiName}`
 }
 

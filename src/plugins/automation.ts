@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { AutomationScope, ScheduledJob, SupportTicket, TicketPriority, TicketStatus } from '../core/database.js'
+import type { AutomationScope, KnowledgeEntry, ScheduledJob, SupportTicket, TicketPriority, TicketStatus } from '../core/database.js'
 import { DEFAULT_AUTOMATION } from '../core/database.js'
-import { AiService } from '../core/ai.js'
+import { AiService, AiServiceError } from '../core/ai.js'
 import type { BotCommand, CommandContext } from '../types.js'
 import { brandedPanel, signText } from '../utils/brand.js'
+import { downloadMedia, findMedia } from '../utils/message.js'
 import { normalizeWords } from '../utils/text.js'
 
 const SCOPES = new Set<AutomationScope>(['prive', 'groupe', 'tous'])
@@ -588,22 +589,98 @@ export const automationCommands: BotCommand[] = [
   {
     name: 'assistantauto',
     aliases: ['iaauto', 'assistantclient'],
-    description: 'Active ou désactive l’assistant IA automatique pour les messages privés entrants.',
-    usage: 'activer|desactiver|statut|consigne <texte>|reinitialiser',
+    description: 'Active, configure et enrichit l’assistant IA automatique pour les messages privés entrants.',
+    usage: 'activer|desactiver|statut|consigne <texte>|info nom | texte|media nom|infos|retirerinfo id|reinitialiser',
     category: 'Automatisation',
     ownerOnly: true,
     async execute(ctx) {
       const action = ctx.args[0]?.toLowerCase()
-      const settings = ctx.db.getSessionAutomation(ctx.sessionName).customerAi
+      const sessionSettings = ctx.db.getSessionAutomation(ctx.sessionName)
+      const settings = sessionSettings.customerAi
       if (action === 'statut') {
         const ai = new AiService(ctx.config).status()
         return void (await ctx.reply(
           `Assistant IA automatique : *${settings.enabled ? 'activé' : 'désactivé'}*
 Réponses : *messages privés entrants d’autres personnes uniquement*
 Fournisseur : *${ai.configured ? 'configuré' : 'non configuré'}* (${ai.provider} / ${ai.model})
+Informations apprises : *${sessionSettings.knowledge.length}*
 Protection : *messages privés entrants uniquement • 1 réponse toutes les 20 s • transfert humain automatique*
 Consigne : ${settings.instructions}`,
         ))
+      }
+      if (action === 'infos' || action === 'listeinfos' || action === 'connaissances') {
+        const entries = sessionSettings.knowledge.slice(-50)
+        return void (await ctx.reply(
+          entries.length
+            ? `*INFORMATIONS ASSISTANTAUTO*
+${entries.map((entry) => `#${entry.id} • ${entry.kind} • ${entry.label}`).join('\n')}`
+            : 'Aucune information n’est encore enregistrée pour cet AssistantAuto.',
+        ))
+      }
+      if (action === 'retirerinfo' || action === 'supprimerinfo') {
+        const id = ctx.args[1]?.trim()
+        if (!id) return void (await ctx.reply(`Utilisation : ${ctx.prefix}assistantauto retirerinfo identifiant`))
+        let removed = false
+        await ctx.db.mutateSessionAutomation(ctx.sessionName, (automation) => {
+          const before = automation.knowledge.length
+          automation.knowledge = automation.knowledge.filter((entry) => entry.id !== id)
+          removed = automation.knowledge.length < before
+        })
+        return void (await ctx.reply(removed ? 'Information AssistantAuto retirée.' : 'Identifiant introuvable.'))
+      }
+      if (action === 'info' || action === 'ajouterinfo') {
+        if (sessionSettings.knowledge.length >= 100) {
+          return void (await ctx.reply('La base AssistantAuto contient déjà 100 éléments. Retire une ancienne information avant d’en ajouter une nouvelle.'))
+        }
+        const pair = splitAtPipe(ctx.args.slice(1).join(' '))
+        if (!pair) {
+          return void (await ctx.reply(`Utilisation : ${ctx.prefix}assistantauto info tarifs | Abonnement 1 mois : 5000 XOF`))
+        }
+        const [labelRaw, contentRaw] = pair
+        const label = labelRaw.trim().slice(0, 120)
+        const content = contentRaw.trim().slice(0, 6_000)
+        if (!label || !content) return void (await ctx.reply('Nom ou information invalide.'))
+        const entry: KnowledgeEntry = {
+          id: shortId(),
+          kind: 'texte',
+          label,
+          content,
+          mimetype: null,
+          fileName: null,
+          createdAt: new Date().toISOString(),
+        }
+        await ctx.db.mutateSessionAutomation(ctx.sessionName, (automation) => automation.knowledge.push(entry))
+        return void (await ctx.reply(`Information *#${entry.id}* ajoutée à AssistantAuto. Il pourra désormais s’en servir pour répondre aux clients.`))
+      }
+      if (action === 'media' || action === 'ajoutermedia') {
+        if (sessionSettings.knowledge.length >= 100) {
+          return void (await ctx.reply('La base AssistantAuto contient déjà 100 éléments. Retire une ancienne information avant d’en ajouter une nouvelle.'))
+        }
+        const label = ctx.args.slice(1).join(' ').trim().slice(0, 120)
+        if (!label) return void (await ctx.reply(`Réponds à un média avec : ${ctx.prefix}assistantauto media catalogue`))
+        const source = ctx.quotedMessage() ?? ctx.message
+        const media = findMedia(source)
+        if (!media) return void (await ctx.reply('Réponds à une photo, vidéo, audio ou document à apprendre.'))
+        const ai = new AiService(ctx.config)
+        if (!ai.isConfigured()) return void (await ctx.reply('L’assistant IA n’est pas configuré pour analyser ce média.'))
+        try {
+          const downloaded = await downloadMedia(source, 12 * 1024 * 1024, ctx.sock)
+          const extracted = await ai.extractKnowledgeFromMedia(downloaded.buffer, downloaded.mimetype, label)
+          const node = media.node as { fileName?: string | null }
+          const entry: KnowledgeEntry = {
+            id: shortId(),
+            kind: 'media',
+            label,
+            content: extracted,
+            mimetype: downloaded.mimetype,
+            fileName: node.fileName ?? null,
+            createdAt: new Date().toISOString(),
+          }
+          await ctx.db.mutateSessionAutomation(ctx.sessionName, (automation) => automation.knowledge.push(entry))
+          return void (await ctx.reply(`Média analysé et appris par AssistantAuto sous *#${entry.id}* (${label}). Il utilisera ces informations lorsqu’un client les demande.`))
+        } catch (error) {
+          return void (await ctx.reply(error instanceof AiServiceError ? error.message : error instanceof Error ? error.message : 'Impossible d’analyser ce média.'))
+        }
       }
       if (action === 'activer') {
         if (!new AiService(ctx.config).isConfigured()) {
@@ -632,7 +709,7 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
         await ctx.db.mutateSessionAutomation(ctx.sessionName, (automation) => { automation.customerAi.instructions = DEFAULT_AUTOMATION.customerAi.instructions })
         return void (await ctx.reply('✅ Consigne de l’assistant automatique réinitialisée.'))
       }
-      await ctx.reply(`Utilisation : ${ctx.prefix}assistantauto activer|desactiver|statut|consigne <texte>|reinitialiser`)
+      await ctx.reply(`Utilisation : ${ctx.prefix}assistantauto activer|desactiver|statut|consigne <texte>|info nom | texte|media nom|infos|retirerinfo id|reinitialiser`)
     },
   },
   {
