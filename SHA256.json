@@ -1,6 +1,6 @@
 {
   ".dockerignore": "6ed700d78295091fa61b0ef29a99458e6b57b2e2730e711ca9c22a6370c34319",
-  ".env.example": "51d87dcdc4797faeaed0fdfd1c22cff237c0a9f25592f724e8c0ea43a40a1cb7",
+  ".env.example": "7086e28a84de9a62de4ed064b67b1dc396566a3492aba635a2cd9dc72aa78b3c",
   ".github/workflows/verification.yml": "7365249f0f73775d86c1184a6910d7cd31668d532e11bc62cbc01cdda6ac0525",
   ".gitignore": "5d6e7cbad78243a678627e7036715566533fb93dd01b58a863fb3be718c60b57",
   "CHANGELOG.md": "fb49863998b0e2a1eda2c5847a43f7a035cd58b01d91ab54e84d71434b1e3f60",
@@ -28,7 +28,7 @@
   "scripts/generate_pm2_cheatsheet.py": "c116460407c33f0d4a22eaf518bdac9ced6d8a31c858eec6a77ec11ad1022d0b",
   "scripts/platform.sh": "5ded241476eaab78ce73bc6bee1de6006d3636f89f5dcab298c32ef09d960fdf",
   "src/cli.ts": "cd57eb15ae7e62039d9d119155d65196a4828faa196c69409b944d0bf6948ac2",
-  "src/config.ts": "a1ab34a3cab5eb30c9be3c0da890fc567cd07c20bab805ca20836431c3aaf59e",
+  "src/config.ts": "0b76b572e91654bfdee4b380b44f5b7a7959df41cc7aa72ea0c8d15f7a3cf277",
   "src/core/ai.ts": "e8bfabd04e9c1ddc4b3084d44ee11070d64514516bcfe0e78532f9e14c80bd9d",
   "src/core/api.ts": "77bed00d203ef3c5105a3e5d3235b30b3a458f9d02e28fa7249b3abab52f1f21",
   "src/core/apk-downloader.ts": "ceecb92d758522fa45f7dec101282a972149e54e999364d7cacf9462938d6aa9",
@@ -36,13 +36,13 @@
   "src/core/cloudflare-pool.ts": "32e74bfb32442f3f0ca5c1474a658dc6f4edbd2634bf21eb37917d82c1664df8",
   "src/core/database.ts": "6f91e336c8edc06c6002646f92a3cc6f9f25f2519279b81e601dcd85a8cb74ea",
   "src/core/logger.ts": "44907170250459d03f3502de5f1e927dfd95c8bc4a0ef8ccd9b3c038a28ce305",
-  "src/core/media-ai.ts": "763cd2e773bfe3245966fdbf42edc10e5b5a38c23b21203bcc0fabbc5b6e688e",
+  "src/core/media-ai.ts": "8d545c65bde82759deb5e0f856f778ff10e7ef4ee6214f6351c65f9c183d5e23",
   "src/core/media-archive.ts": "825f0da0af0f5108f055cf0efe1469fcef4fd6f88ce969550362afa110908dc7",
   "src/core/message-history.ts": "1b4690b193525e7463e672d4e0227d34ad3302d200e00e0f2daa0aa8f7d35cc0",
   "src/core/moderation.ts": "75262ce96cfa75efc865e44d52a184976757431f1e62bc2f9ee622ff62779598",
   "src/core/rate-limiter.ts": "6cd5eede0b56e56f736ca67f0256585ba549ef6f39bfe9584930df5fca61c5b3",
   "src/core/registry.ts": "8ca378e93161c6125dc7a5add0f66fa18a35c1ed5b336e48dcd4f52f4e22305f",
-  "src/core/router.ts": "e85d91ddad885a9e2fd28574a1a1458647f2c05e563f9bdc3ecb5d035ffc71b5",
+  "src/core/router.ts": "97d322a3d8af122cce18488b7b3a3120dabcc17300a0dafac9527cc0376fbdb4",
   "src/core/scheduler.ts": "1fc442fde33a631429c833570742ea92ddd5e667803a7082f4437312933a9bc0",
   "src/core/session-manager.ts": "39f428640659b7ca7bc43ae763fc6178064049ec95918c767bdb50d14423e1c0",
   "src/core/social-downloader.ts": "7a5c3c2418280e536a3e6464b1728bd103d90c5098c160a606e334061f2ecb18",
@@ -104,6 +104,7 @@
   "test/tts.test.ts": "b3846dbbb40ab1a8e77ff524179f40c8d8e7265d73ce8972d0fb1b54b9ef6d5d",
   "test/v180-features.test.ts": "0f8a06a2c3cc86fa0639e27c55c05d8feebe9f53466bd0754e67ee572899ae21",
   "test/v181-features.test.ts": "a6b4569d91c794307a5097c2c15245d30e880809cfaccb999d114e93209a4314",
-  "test/v182-features.test.ts": "c1c9cfa49f85c895b8dfbd82c9a9480bca3c7eb6de026a60234021367c190ad5",
-  "tsconfig.json": "7ff18c088950b4d24629c98abb6d478114709acda7b7abd637ab4aa044e3d343"
+  "test/v182-features.test.ts": "02b0319e62b864bd0975966af7f80c76341375b7f7c182eba7f285c8e8f99083",
+  "tsconfig.json": "7ff18c088950b4d24629c98abb6d478114709acda7b7abd637ab4aa044e3d343",
+  "env.example.media-archive": "e5c1b0a09107b11d078539420ee82f111706cc687791a641537048b6c5642e5a"
 }
