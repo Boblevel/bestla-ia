@@ -74,6 +74,89 @@ const GAGES = [
   'Choisis une chanson et résume son ambiance en trois emojis, sans citer les paroles.',
 ]
 
+const ACTIONS = [
+  'Envoie un vocal de 10 secondes en parlant comme un présentateur radio.',
+  'Fais un compliment drôle mais sincère à la personne de ton choix dans le chat.',
+  'Choisis trois emojis pour raconter ta journée et laisse les autres deviner.',
+  'Écris une phrase romantique ou amicale sans utiliser la lettre « a ».',
+  'Présente un objet près de toi comme si c’était un produit de luxe pendant 15 secondes.',
+  'Fais un mini freestyle de 10 secondes sur un thème choisi par le chat.',
+  'Écris un message très sérieux uniquement avec des emojis.',
+  'Donne un surnom drôle et gentil à la personne de ton choix.',
+  'Fais un vocal de 10 secondes avec une voix de commentateur de football.',
+  'Écris trois qualités de la dernière personne qui t’a envoyé un message.',
+]
+
+const JE_NAI_JAMAIS = [
+  'Je n’ai jamais envoyé un message puis fait semblant que ce n’était pas pour cette personne.',
+  'Je n’ai jamais relu une ancienne conversation juste pour sourire.',
+  'Je n’ai jamais menti sur l’heure à laquelle je me suis couché.',
+  'Je n’ai jamais supprimé un message parce que je regrettais immédiatement de l’avoir envoyé.',
+  'Je n’ai jamais inventé une excuse pour éviter une sortie.',
+  'Je n’ai jamais regardé le statut de quelqu’un plusieurs fois dans la même journée.',
+  'Je n’ai jamais ri dans un moment où je devais rester sérieux.',
+  'Je n’ai jamais oublié l’anniversaire de quelqu’un d’important.',
+  'Je n’ai jamais gardé une capture d’écran d’une conversation drôle.',
+  'Je n’ai jamais fait semblant de ne pas avoir vu un message.',
+]
+
+const TU_PREFERES_AMIS = [
+  'Tu préfères perdre ton téléphone pendant une semaine ou ne plus utiliser les réseaux sociaux pendant un mois ?',
+  'Tu préfères avoir toujours 30 minutes d’avance ou toujours 10 minutes de retard ?',
+  'Tu préfères voyager gratuitement partout ou manger gratuitement dans tous les restaurants ?',
+  'Tu préfères savoir chanter parfaitement ou danser parfaitement ?',
+  'Tu préfères recevoir 1 million maintenant ou 100 000 chaque année pendant 15 ans ?',
+  'Tu préfères vivre sans musique ou sans films et séries ?',
+  'Tu préfères pouvoir lire les pensées ou devenir invisible pendant une heure par jour ?',
+  'Tu préfères une grande fête avec tous tes amis ou un voyage avec trois personnes proches ?',
+]
+
+const QUI_DE_NOUS = [
+  'Qui de nous répond le plus vite aux messages ?',
+  'Qui de nous peut le plus facilement oublier où il a posé son téléphone ?',
+  'Qui de nous est le plus susceptible de devenir célèbre ?',
+  'Qui de nous dépense le plus facilement son argent ?',
+  'Qui de nous rigole le plus pour rien ?',
+  'Qui de nous est le plus jaloux de son sommeil ?',
+  'Qui de nous survivrait le mieux une semaine sans Internet ?',
+  'Qui de nous ferait le meilleur animateur de soirée ?',
+  'Qui de nous tomberait amoureux le plus vite ?',
+  'Qui de nous garderait un secret le plus longtemps ?',
+]
+
+const CAP_OU_PAS_CAP = [
+  'Cap ou pas cap d’envoyer un vocal de 10 secondes sans préparer ce que tu vas dire ?',
+  'Cap ou pas cap de laisser le chat choisir ton prochain statut WhatsApp pendant 5 minutes ?',
+  'Cap ou pas cap de faire un compliment à chaque personne qui joue ?',
+  'Cap ou pas cap d’écrire ton prochain message les yeux fermés ?',
+  'Cap ou pas cap de raconter ton moment le plus drôle de la semaine ?',
+  'Cap ou pas cap de parler pendant 15 secondes sans utiliser le mot « je » ?',
+  'Cap ou pas cap de décrire ton humeur actuelle avec seulement trois emojis ?',
+  'Cap ou pas cap de donner une note sur 10 à ta journée et expliquer pourquoi ?',
+]
+
+const SEPT_SECONDES = [
+  'Tu as 7 secondes : cite 3 pays africains.',
+  'Tu as 7 secondes : cite 3 plats que tu pourrais manger maintenant.',
+  'Tu as 7 secondes : cite 3 artistes que tu écoutes souvent.',
+  'Tu as 7 secondes : cite 3 choses que tu emporterais en voyage.',
+  'Tu as 7 secondes : cite 3 qualités que tu apprécies chez un ami.',
+  'Tu as 7 secondes : cite 3 applications que tu utilises presque tous les jours.',
+  'Tu as 7 secondes : cite 3 villes que tu aimerais visiter.',
+  'Tu as 7 secondes : cite 3 choses qui peuvent te mettre de bonne humeur.',
+]
+
+const CHAISE_CHAUDE = [
+  'Quel est ton plus grand objectif pour cette année ?',
+  'Quelle qualité chez une personne te donne immédiatement confiance ?',
+  'Quel souvenir te fait rire à chaque fois que tu y repenses ?',
+  'Quelle chose aimerais-tu apprendre si tu avais tout le temps nécessaire ?',
+  'Quel est le meilleur conseil qu’on t’ait donné ?',
+  'Quel type de message te fait toujours plaisir à recevoir ?',
+  'Si tu pouvais revivre une seule journée, laquelle choisirais-tu ?',
+  'Quelle petite chose peut complètement améliorer ta journée ?',
+]
+
 const BLAGUES = [
   'Pourquoi les développeurs aiment le mode sombre ? Parce que la lumière attire les bugs. 😄',
   'Un client dit : « Je veux un site simple ». Le développeur répond : « Parfait, on se revoit dans trois semaines ». 😂',
@@ -310,6 +393,107 @@ export const utilityCommands: BotCommand[] = [
     category: 'Jeux',
     async execute(ctx) {
       await ctx.reply(`🧩 *QUIZ COUPLE*\n${QUIZ_COUPLE[randomInt(0, QUIZ_COUPLE.length)]}`)
+    },
+  },
+  {
+    name: 'action',
+    aliases: ['defiaction'],
+    description: 'Donne une action amusante à réaliser avec sa copine ou ses amis.',
+    category: 'Jeux',
+    async execute(ctx) {
+      await ctx.reply(`🔥 *ACTION*\n${ACTIONS[randomInt(0, ACTIONS.length)]}`)
+    },
+  },
+  {
+    name: 'actionouverite',
+    aliases: ['aov'],
+    description: 'Lance Action ou Vérité, au choix ou au hasard.',
+    usage: '[action|verite]',
+    category: 'Jeux',
+    async execute(ctx) {
+      const requested = ctx.args[0]?.toLowerCase()
+      if (requested && requested !== 'action' && requested !== 'verite') {
+        return void (await ctx.reply(`Utilisation : ${ctx.prefix}actionouverite [action|verite]`))
+      }
+      const mode = requested ?? (randomInt(0, 2) === 0 ? 'action' : 'verite')
+      if (mode === 'action') {
+        return void (await ctx.reply(`🔥 *ACTION*\n${ACTIONS[randomInt(0, ACTIONS.length)]}`))
+      }
+      await ctx.reply(`🤭 *VÉRITÉ*\n${VERITES[randomInt(0, VERITES.length)]}`)
+    },
+  },
+  {
+    name: 'jenaijamais',
+    aliases: ['jamais'],
+    description: 'Lance une phrase Je n’ai jamais pour jouer en couple ou entre amis.',
+    category: 'Jeux',
+    async execute(ctx) {
+      await ctx.reply(`🙈 *JE N’AI JAMAIS*\n${JE_NAI_JAMAIS[randomInt(0, JE_NAI_JAMAIS.length)]}`)
+    },
+  },
+  {
+    name: 'tupreferes',
+    aliases: ['tupreferesamis'],
+    description: 'Lance un dilemme Tu préfères pour jouer entre amis ou en couple.',
+    category: 'Jeux',
+    async execute(ctx) {
+      await ctx.reply(`⚖️ *TU PRÉFÈRES*\n${TU_PREFERES_AMIS[randomInt(0, TU_PREFERES_AMIS.length)]}`)
+    },
+  },
+  {
+    name: 'quidenous',
+    aliases: ['quideux'],
+    description: 'Pose une question Qui de nous pour comparer les joueurs.',
+    category: 'Jeux',
+    async execute(ctx) {
+      await ctx.reply(`👀 *QUI DE NOUS ?*\n${QUI_DE_NOUS[randomInt(0, QUI_DE_NOUS.length)]}`)
+    },
+  },
+  {
+    name: 'capoupascap',
+    aliases: ['cap'],
+    description: 'Lance un défi Cap ou pas cap léger et amusant.',
+    category: 'Jeux',
+    async execute(ctx) {
+      await ctx.reply(`😎 *CAP OU PAS CAP ?*\n${CAP_OU_PAS_CAP[randomInt(0, CAP_OU_PAS_CAP.length)]}`)
+    },
+  },
+  {
+    name: 'septsecondes',
+    aliases: ['7secondes'],
+    description: 'Donne un défi à réaliser en sept secondes.',
+    category: 'Jeux',
+    async execute(ctx) {
+      await ctx.reply(`⏱️ *7 SECONDES*\n${SEPT_SECONDES[randomInt(0, SEPT_SECONDES.length)]}`)
+    },
+  },
+  {
+    name: 'chaisechaude',
+    aliases: ['chaise'],
+    description: 'Pose une question de chaise chaude pour mieux connaître les joueurs.',
+    category: 'Jeux',
+    async execute(ctx) {
+      await ctx.reply(`🔥🪑 *CHAISE CHAUDE*\n${CHAISE_CHAUDE[randomInt(0, CHAISE_CHAUDE.length)]}`)
+    },
+  },
+  {
+    name: 'bouteille',
+    aliases: ['tournerbouteille'],
+    description: 'Tourne la bouteille dans un groupe et désigne un membre avec une action ou une vérité.',
+    category: 'Jeux',
+    groupOnly: true,
+    cooldownSeconds: 3,
+    async execute(ctx) {
+      const participants = (ctx.groupMetadata?.participants ?? [])
+        .map((participant) => participant.id)
+        .filter((jid) => !sameUser(jid, ctx.sock.user?.id))
+      if (!participants.length) return void (await ctx.reply('Aucun joueur disponible dans ce groupe.'))
+      const target = participants[randomInt(0, participants.length)]!
+      const isAction = randomInt(0, 2) === 0
+      const prompt = isAction
+        ? `🔥 *ACTION*\n${ACTIONS[randomInt(0, ACTIONS.length)]}`
+        : `🤭 *VÉRITÉ*\n${VERITES[randomInt(0, VERITES.length)]}`
+      await ctx.reply(`🍾 *LA BOUTEILLE A CHOISI* ${jidToMention(target)} !\n\n${prompt}`, [target])
     },
   },
   {

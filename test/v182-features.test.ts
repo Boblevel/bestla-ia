@@ -38,9 +38,25 @@ test('V18.2 ajoute les deux outils groupe demandés et les jeux couple', async (
   const copyMembersBlock = group.slice(group.indexOf("name: 'copiermembres'"))
   assert.doesNotMatch(linkMembersBlock, /groupOnly:\s*true/)
   assert.doesNotMatch(copyMembersBlock, /groupOnly:\s*true/)
-  for (const command of ['tupreferescouple', 'souvenircouple', 'deficouple', 'quizcouple']) {
+  for (const command of [
+    'tupreferescouple',
+    'souvenircouple',
+    'deficouple',
+    'quizcouple',
+    'action',
+    'actionouverite',
+    'jenaijamais',
+    'tupreferes',
+    'quidenous',
+    'capoupascap',
+    'septsecondes',
+    'chaisechaude',
+    'bouteille',
+  ]) {
     assert.match(games, new RegExp(`name: '${command}'`))
   }
+  const bottleBlock = games.slice(games.indexOf("name: 'bouteille'"), games.indexOf("name: 'blague'"))
+  assert.match(bottleBlock, /groupOnly:\s*true/)
 })
 
 test('le panneau retire sessions et propriétaires par choix numérique', async () => {

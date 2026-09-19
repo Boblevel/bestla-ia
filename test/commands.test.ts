@@ -124,6 +124,15 @@ test('enregistre un catalogue étendu de commandes françaises sans anciens noms
     'souvenircouple',
     'deficouple',
     'quizcouple',
+    'action',
+    'actionouverite',
+    'jenaijamais',
+    'tupreferes',
+    'quidenous',
+    'capoupascap',
+    'septsecondes',
+    'chaisechaude',
+    'bouteille',
   ]) {
     assert.ok(registry.get(frenchName), frenchName)
   }
