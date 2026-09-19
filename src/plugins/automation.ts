@@ -555,7 +555,7 @@ export const automationCommands: BotCommand[] = [
     async execute(ctx) {
       const action = ctx.args[0]?.toLowerCase()
       if (action === 'statut') {
-        const settings = ctx.db.getAutomation().customerAi
+        const settings = ctx.db.getSessionAutomation(ctx.sessionName).customerAi
         const ai = new AiService(ctx.config).status()
         return void (await ctx.reply(
           `Service client IA : *${settings.enabled ? 'activé' : 'désactivé'}*\nFournisseur texte : *${ai.configured ? 'configuré' : 'non configuré'}* (${ai.provider} / ${ai.model})\nConsigne : ${settings.instructions}`,
@@ -565,21 +565,21 @@ export const automationCommands: BotCommand[] = [
         if (!new AiService(ctx.config).isConfigured()) {
           return void (await ctx.reply('L’assistant IA n’est pas configuré. Vérifie la configuration IA de Bestla, puis réessaie.'))
         }
-        await ctx.db.mutateAutomation((settings) => { settings.customerAi.enabled = true })
+        await ctx.db.mutateSessionAutomation(ctx.sessionName, (settings) => { settings.customerAi.enabled = true })
         return void (await ctx.reply('Service client IA *activé*. Il répond automatiquement, poliment et uniquement dans les conversations privées.'))
       }
       if (action === 'desactiver') {
-        await ctx.db.mutateAutomation((settings) => { settings.customerAi.enabled = false })
+        await ctx.db.mutateSessionAutomation(ctx.sessionName, (settings) => { settings.customerAi.enabled = false })
         return void (await ctx.reply('Service client IA *désactivé*.'))
       }
       if (action === 'consigne') {
         const instructions = ctx.args.slice(1).join(' ').trim()
         if (!instructions) return void (await ctx.reply(`Utilisation : ${ctx.prefix}serviceclientia consigne Réponds avec un ton professionnel et chaleureux.`))
-        await ctx.db.mutateAutomation((settings) => { settings.customerAi.instructions = instructions.slice(0, 2_000) })
+        await ctx.db.mutateSessionAutomation(ctx.sessionName, (settings) => { settings.customerAi.instructions = instructions.slice(0, 2_000) })
         return void (await ctx.reply('Consigne du service client IA mise à jour.'))
       }
       if (action === 'reinitialiser') {
-        await ctx.db.mutateAutomation((settings) => { settings.customerAi.instructions = DEFAULT_AUTOMATION.customerAi.instructions })
+        await ctx.db.mutateSessionAutomation(ctx.sessionName, (settings) => { settings.customerAi.instructions = DEFAULT_AUTOMATION.customerAi.instructions })
         return void (await ctx.reply('Consigne du service client IA réinitialisée.'))
       }
       await ctx.reply(`Utilisation : ${ctx.prefix}serviceclientia activer|desactiver|statut|consigne|reinitialiser`)
@@ -594,7 +594,7 @@ export const automationCommands: BotCommand[] = [
     ownerOnly: true,
     async execute(ctx) {
       const action = ctx.args[0]?.toLowerCase()
-      const settings = ctx.db.getAutomation().customerAi
+      const settings = ctx.db.getSessionAutomation(ctx.sessionName).customerAi
       if (action === 'statut') {
         const ai = new AiService(ctx.config).status()
         return void (await ctx.reply(
@@ -609,7 +609,7 @@ Consigne : ${settings.instructions}`,
         if (!new AiService(ctx.config).isConfigured()) {
           return void (await ctx.reply('L’assistant IA n’est pas configuré. Vérifie la configuration IA de Bestla, puis réessaie.'))
         }
-        await ctx.db.mutateAutomation((automation) => { automation.customerAi.enabled = true })
+        await ctx.db.mutateSessionAutomation(ctx.sessionName, (automation) => { automation.customerAi.enabled = true })
         return void (await ctx.reply(
           `🤖 Assistant IA automatique *activé*.
 Il répond aux personnes qui t’écrivent en privé, sans démarchage, sans envoi massif et sans intervenir dans les groupes.
@@ -617,7 +617,7 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
         ))
       }
       if (action === 'desactiver') {
-        await ctx.db.mutateAutomation((automation) => { automation.customerAi.enabled = false })
+        await ctx.db.mutateSessionAutomation(ctx.sessionName, (automation) => { automation.customerAi.enabled = false })
         return void (await ctx.reply('🤖 Assistant IA automatique *désactivé*.'))
       }
       if (action === 'consigne') {
@@ -625,11 +625,11 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
         if (!instructions) {
           return void (await ctx.reply(`Utilisation : ${ctx.prefix}assistantauto consigne Réponds poliment, brièvement et professionnellement.`))
         }
-        await ctx.db.mutateAutomation((automation) => { automation.customerAi.instructions = instructions.slice(0, 2_000) })
+        await ctx.db.mutateSessionAutomation(ctx.sessionName, (automation) => { automation.customerAi.instructions = instructions.slice(0, 2_000) })
         return void (await ctx.reply('✅ Consigne de l’assistant automatique mise à jour.'))
       }
       if (action === 'reinitialiser') {
-        await ctx.db.mutateAutomation((automation) => { automation.customerAi.instructions = DEFAULT_AUTOMATION.customerAi.instructions })
+        await ctx.db.mutateSessionAutomation(ctx.sessionName, (automation) => { automation.customerAi.instructions = DEFAULT_AUTOMATION.customerAi.instructions })
         return void (await ctx.reply('✅ Consigne de l’assistant automatique réinitialisée.'))
       }
       await ctx.reply(`Utilisation : ${ctx.prefix}assistantauto activer|desactiver|statut|consigne <texte>|reinitialiser`)
@@ -645,7 +645,7 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
       if (ctx.isGroup) return void (await ctx.reply('Consulte la file d’attente dans une conversation privée.'))
       const tickets = ctx.db
         .listTickets({ status: 'ouvert' })
-        .filter((ticket) => ticket.subject.startsWith('[IA] '))
+        .filter((ticket) => ticket.sessionName === ctx.sessionName && ticket.subject.startsWith('[IA] '))
         .slice(0, 25)
       await ctx.reply(
         tickets.length
@@ -688,8 +688,9 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
     ownerOnly: true,
     async execute(ctx) {
       const settings = ctx.db.getAutomation()
-      const pending = ctx.db.listSchedules().filter((job) => job.status === 'en_attente').length
-      const openTickets = ctx.db.listTickets({ status: 'ouvert' }).length
+      const sessionSettings = ctx.db.getSessionAutomation(ctx.sessionName)
+      const pending = ctx.db.listSchedules().filter((job) => job.sessionName === ctx.sessionName && job.status === 'en_attente').length
+      const openTickets = ctx.db.listTickets({ status: 'ouvert' }).filter((ticket) => ticket.sessionName === ctx.sessionName).length
       await ctx.reply(
         brandedPanel(
           'TABLEAU D’AUTOMATISATION',
@@ -698,7 +699,7 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
             `Absence : ${settings.away.enabled ? '✅' : '❌'}`,
             `Hors horaires : ${settings.businessHours.enabled ? '✅' : '❌'}`,
             `Réactions : ${settings.autoReactionsEnabled ? '✅' : '❌'} (${settings.reactions.length})`,
-            `Service client IA : ${settings.customerAi.enabled ? '✅' : '❌'}`,
+            `Service client IA : ${sessionSettings.customerAi.enabled ? '✅' : '❌'}`,
             `FAQ : ${Object.keys(settings.faq).length}`,
             `Notes : ${Object.keys(settings.notes).length}`,
             `Raccourcis : ${Object.keys(settings.shortcuts).length}`,
@@ -725,7 +726,7 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
       if (action === 'ouvrir') {
         const subject = ctx.args.slice(1).join(' ').trim().slice(0, 500)
         if (!subject) return void (await ctx.reply(`Utilisation : ${ctx.prefix}ticket ouvrir Je souhaite un devis pour…`))
-        const openTickets = ctx.db.listTickets({ createdBy: ctx.sender, status: 'ouvert' })
+        const openTickets = ctx.db.listTickets({ createdBy: ctx.sender, status: 'ouvert' }).filter((ticket) => ticket.sessionName === ctx.sessionName)
         if (openTickets.length >= 5) return void (await ctx.reply('Tu as déjà 5 tickets ouverts. Ferme-en un avant d’en créer un autre.'))
         const now = new Date().toISOString()
         const ticket: SupportTicket = {
@@ -744,19 +745,19 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
         return
       }
       if (action === 'mes') {
-        const tickets = ctx.db.listTickets({ createdBy: ctx.sender }).slice(0, 10)
+        const tickets = ctx.db.listTickets({ createdBy: ctx.sender }).filter((ticket) => ticket.sessionName === ctx.sessionName).slice(0, 10)
         return void (await ctx.reply(tickets.length ? `*TES TICKETS*\n\n${tickets.map(ticketLabel).join('\n\n')}` : 'Tu n’as pas encore créé de ticket.'))
       }
       if (action === 'voir') {
         const id = ctx.args[1]
         const ticket = id ? ctx.db.getTicket(id) : undefined
-        if (!ticket || ticket.createdBy !== ctx.sender) return void (await ctx.reply('Ticket introuvable.'))
+        if (!ticket || ticket.createdBy !== ctx.sender || ticket.sessionName !== ctx.sessionName) return void (await ctx.reply('Ticket introuvable.'))
         return void (await ctx.reply(`🎫 *TICKET #${ticket.id}*\n\nStatut : *${ticket.status}*\nPriorité : *${ticket.priority}*\nCréé : ${new Date(ticket.createdAt).toLocaleString('fr-FR', { timeZone: ctx.config.timezone })}\nSujet : ${ticket.subject}`))
       }
       if (action === 'fermer') {
         const id = ctx.args[1]
         const ticket = id ? ctx.db.getTicket(id) : undefined
-        if (!ticket || ticket.createdBy !== ctx.sender) return void (await ctx.reply('Ticket introuvable.'))
+        if (!ticket || ticket.createdBy !== ctx.sender || ticket.sessionName !== ctx.sessionName) return void (await ctx.reply('Ticket introuvable.'))
         if (ticket.status === 'ferme') return void (await ctx.reply('Ce ticket est déjà fermé.'))
         await ctx.db.updateTicket(ticket.id, { status: 'ferme' })
         return void (await ctx.reply(`Ticket *#${ticket.id}* fermé. Merci pour ton retour.`))
@@ -779,7 +780,7 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
       if (!['ouverts', 'fermes', 'tous'].includes(choice)) {
         return void (await ctx.reply(`Utilisation : ${ctx.prefix}tickets ouverts|fermes|tous`))
       }
-      const tickets = ctx.db.listTickets(status ? { status } : {}).slice(0, 25)
+      const tickets = ctx.db.listTickets(status ? { status } : {}).filter((ticket) => ticket.sessionName === ctx.sessionName).slice(0, 25)
       await ctx.reply(tickets.length ? `*TICKETS ${choice.toUpperCase()}*\n\n${tickets.map(ticketLabel).join('\n\n')}` : 'Aucun ticket correspondant.')
     },
   },
@@ -823,6 +824,8 @@ Pour tester : fais écrire le bot par un autre numéro en message privé. Tes pr
       if (!id || !priority || !TICKET_PRIORITIES.has(priority)) {
         return void (await ctx.reply(`Utilisation : ${ctx.prefix}prioriteticket tk12345678 haute`))
       }
+      const current = ctx.db.getTicket(id)
+      if (!current || current.sessionName !== ctx.sessionName) return void (await ctx.reply('Ticket introuvable.'))
       const ticket = await ctx.db.updateTicket(id, { priority })
       await ctx.reply(ticket ? `Priorité du ticket *#${ticket.id}* : *${priority}*.` : 'Ticket introuvable.')
     },

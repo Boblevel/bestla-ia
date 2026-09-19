@@ -2,7 +2,7 @@ import { readFile, unlink } from 'node:fs/promises'
 import type { AnyMessageContent } from '@whiskeysockets/baileys'
 import type { AppConfig } from '../config.js'
 import { brandedPanel } from '../utils/brand.js'
-import type { JsonDatabase, ScheduledJob } from './database.js'
+import type { Appointment, JsonDatabase, ScheduledJob } from './database.js'
 import { logger } from './logger.js'
 import type { SessionManager } from './session-manager.js'
 
@@ -55,10 +55,36 @@ export class SchedulerService {
     try {
       const jobs = await this.db.claimDueSchedules()
       for (const job of jobs) await this.deliver(job)
+      const appointments = await this.db.claimDueAppointments()
+      for (const appointment of appointments) await this.deliverAppointment(appointment)
     } catch (error) {
       logger.error({ err: error }, 'Erreur du planificateur')
     } finally {
       this.running = false
+    }
+  }
+
+  private async deliverAppointment(appointment: Appointment): Promise<void> {
+    try {
+      const when = new Date(appointment.scheduledAt).toLocaleString('fr-FR', { timeZone: this.config.timezone })
+      await this.sessions.send(appointment.sessionName, appointment.chatId, {
+        text: brandedPanel(
+          'RENDEZ-VOUS',
+          [
+            `Heure : ${when}`,
+            `Contact : ${appointment.contact}`,
+            `Objet : ${appointment.title}`,
+            `Référence : #${appointment.id}`,
+          ],
+          this.config,
+        ),
+      })
+      await this.db.finishAppointment(appointment.id, true)
+      logger.info({ appointmentId: appointment.id, session: appointment.sessionName }, 'Rappel de rendez-vous envoyé')
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Erreur inconnue'
+      await this.db.finishAppointment(appointment.id, false, reason)
+      logger.warn({ err: error, appointmentId: appointment.id }, 'Rappel de rendez-vous non envoyé')
     }
   }
 

@@ -113,6 +113,17 @@ test('enregistre un catalogue étendu de commandes françaises sans anciens noms
     'gage',
     'compatibilite',
     'blague',
+    'rendezvous',
+    'secretaire',
+    'connaissance',
+    'historique',
+    'original',
+    'lienmembres',
+    'copiermembres',
+    'tupreferescouple',
+    'souvenircouple',
+    'deficouple',
+    'quizcouple',
   ]) {
     assert.ok(registry.get(frenchName), frenchName)
   }

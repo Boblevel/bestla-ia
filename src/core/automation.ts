@@ -103,10 +103,10 @@ function normalizedSentence(value: string): string {
   return normalizeWords(value).join(' ')
 }
 
-function aiTicketForSender(db: JsonDatabase, sender: string): SupportTicket | undefined {
+function aiTicketForSender(db: JsonDatabase, sessionName: string, sender: string): SupportTicket | undefined {
   return db
     .listTickets({ createdBy: sender, status: 'ouvert' })
-    .find((ticket) => ticket.subject.startsWith(`${AI_TICKET_PREFIX} `))
+    .find((ticket) => ticket.sessionName === sessionName && ticket.subject.startsWith(`${AI_TICKET_PREFIX} `))
 }
 
 export function customerMessageNeedsHuman(value: string): boolean {
@@ -288,6 +288,8 @@ export class AutomationService {
 
   async inspect(input: AutomationInput): Promise<boolean> {
     const settings = this.db.getAutomation()
+    const sessionSettings = this.db.getSessionAutomation(input.sessionName)
+    const customerAi = sessionSettings.customerAi
     const normalizedBody = normalizedSentence(input.body)
     if (!normalizedBody) return false
 
@@ -300,14 +302,14 @@ export class AutomationService {
       }
     }
 
-    if (!input.isGroup && !settings.customerAi.enabled && isOutsideBusinessHours(settings)) {
+    if (!input.isGroup && !customerAi.enabled && isOutsideBusinessHours(settings)) {
       if (this.consume(`horaires:${input.sender}`, 12 * 60 * 60_000)) {
         await input.reply(settings.businessHours.message)
         return true
       }
     }
 
-    if (!input.isGroup && !settings.customerAi.enabled && settings.away.enabled) {
+    if (!input.isGroup && !customerAi.enabled && settings.away.enabled) {
       if (this.consume(`absence:${input.sender}`, 12 * 60 * 60_000)) {
         await input.reply(settings.away.message)
         return true
@@ -325,9 +327,9 @@ export class AutomationService {
       }
     }
 
-    if (!input.isGroup && settings.customerAi.enabled) {
+    if (!input.isGroup && customerAi.enabled) {
       const startedAt = Date.now()
-      const pending = aiTicketForSender(this.db, input.sender)
+      const pending = aiTicketForSender(this.db, input.sessionName, input.sender)
       const ai = new AiService(this.config)
       if (!ai.isConfigured()) return false
 
@@ -375,7 +377,7 @@ export class AutomationService {
         ? 'Le contact a utilisé un emoji. Tu peux en mettre au maximum un si cela sonne naturel, mais pas systématiquement.'
         : 'Le contact n’a utilisé aucun emoji : n’en mets aucun dans ta réponse.'
       const instruction = [
-        settings.customerAi.instructions,
+        customerAi.instructions,
         'Écris directement le message WhatsApp à ma place.',
         'Voix : jeune adulte africain francophone de 23 ans, respectueux, posé, naturel et à l’aise sur WhatsApp. Français conversationnel propre, sans caricature, sans imitation d’accent et sans argot forcé.',
         'Fais humain : varie les débuts de phrase, évite les réponses trop parfaites ou administratives, et réponds avec le niveau de familiarité que le contact lui-même emploie.',
@@ -387,6 +389,9 @@ export class AutomationService {
         'N’invente aucune activité personnelle, position, prix, disponibilité, délai, adresse, garantie ou promesse. Si une information manque, dis-le simplement ou pose une courte question utile.',
         'Si le contact demande Rhaff ou le propriétaire, réponds naturellement comme si j’écrivais moi-même ; le signalement éventuel est géré en interne et ne doit jamais être mentionné.',
         businessContext ? `Infos publiques utilisables :\n${businessContext}` : 'Aucune information commerciale précise disponible : ne rien inventer.',
+        sessionSettings.knowledge.length
+          ? `Base de connaissances de cette session :\n${sessionSettings.knowledge.slice(-40).map((entry) => `- ${entry.label}: ${entry.content}`).join('\n').slice(0, 12_000)}`
+          : 'Aucune base de connaissances supplémentaire enregistrée pour cette session.',
         pending ? 'Une demande de ce contact est déjà signalée en interne : n’en parle pas et poursuis normalement.' : '',
         `Échanges récents :\n${recentConversation}`,
         'Retourne uniquement le message final à envoyer, sans explication ni marqueur.',

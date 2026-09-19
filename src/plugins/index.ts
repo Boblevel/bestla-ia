@@ -13,6 +13,7 @@ import { generativeMediaCommands } from './generative-media.js'
 import { mediaCommands } from './media.js'
 import { moderationCommands } from './moderation.js'
 import { ownerCommands } from './owner.js'
+import { productivityCommands } from './productivity.js'
 import { socialMediaCommands } from './social-media.js'
 import { whatsappCommands } from './whatsapp.js'
 import { ttsCommands } from './tts.js'
@@ -33,6 +34,7 @@ export function registerBuiltInCommands(registry: CommandRegistry): void {
     ...advancedMediaCommands,
     ...ttsCommands,
     ...automationCommands,
+    ...productivityCommands,
     ...budgetCommands,
     ...businessCommands,
     ...commerceCommands,

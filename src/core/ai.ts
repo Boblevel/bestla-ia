@@ -67,6 +67,57 @@ export class AiService {
     }
   }
 
+  async extractKnowledgeFromMedia(buffer: Buffer, mimetype: string, label = ''): Promise<string> {
+    if (!this.isConfigured()) {
+      throw new AiServiceError(
+        'L’assistant IA n’est pas configuré. Vérifie la configuration IA de Bestla (.env ou panneau Configuration), puis réessaie.',
+      )
+    }
+    if (buffer.length === 0) throw new AiServiceError('Le média à analyser est vide.')
+    if (buffer.length > 12 * 1024 * 1024) {
+      throw new AiServiceError('Le média est trop volumineux pour être ajouté à la base IA (12 Mo maximum).')
+    }
+
+    const model = encodeURIComponent(this.config.ai.model)
+    let response: Response
+    try {
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: 'POST',
+          signal: AbortSignal.timeout(60_000),
+          headers: {
+            'content-type': 'application/json',
+            'x-goog-api-key': this.config.ai.apiKey,
+          },
+          body: JSON.stringify({
+            systemInstruction: {
+              parts: [{
+                text: 'Analyse ce média pour construire une base de connaissances client. Extrais uniquement les informations factuelles et utiles réellement présentes. Ne devine rien. Réponds en français, de façon compacte et structurée, sans révéler de donnée technique privée.',
+              }],
+            },
+            contents: [{
+              role: 'user',
+              parts: [
+                { text: `Nom de la connaissance : ${label.trim().slice(0, 120) || 'média WhatsApp'}` },
+                { inlineData: { mimeType: mimetype || 'application/octet-stream', data: buffer.toString('base64') } },
+              ],
+            }],
+            generationConfig: { maxOutputTokens: 800 },
+          }),
+        },
+      )
+    } catch {
+      throw new AiServiceError('Gemini est temporairement indisponible ou trop lent pour analyser ce média.')
+    }
+
+    const payload = (await response.json().catch(() => ({}))) as unknown
+    if (!response.ok) throw providerError(response.status, payload)
+    const result = geminiText(payload)
+    if (!result) throw new AiServiceError('Gemini n’a pas pu extraire d’information exploitable de ce média.')
+    return result.slice(0, 6_000)
+  }
+
   async complete(instruction: string, prompt: string, options: AiCompletionOptions = {}): Promise<string> {
     if (!this.isConfigured()) {
       throw new AiServiceError(

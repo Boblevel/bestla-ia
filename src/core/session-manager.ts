@@ -16,6 +16,13 @@ import type { SessionStatus } from '../types.js'
 import { normalizeUserJid } from '../utils/jid.js'
 import { baileysLogger, logger } from './logger.js'
 import { archiveMediaMessage, cleanupMediaArchive } from './media-archive.js'
+import {
+  captureIncomingMessage,
+  markMessageDeleted,
+  protocolMutation,
+  recordDirectMessageUpdate,
+  recordProtocolMutation,
+} from './message-history.js'
 import { isWhatsAppStatusMessage, markStatusMessageRead, rememberStatusMessage } from './status-viewer.js'
 
 export interface SessionRuntime {
@@ -111,6 +118,7 @@ export class SessionManager {
     private readonly onMessage: MessageHandler,
     private readonly onParticipants: ParticipantsHandler,
     private readonly shouldAutoReadStatuses: () => boolean = () => false,
+    private readonly shouldTrackMessageHistory: (sessionName: string) => boolean = () => false,
   ) {}
 
   async start(): Promise<void> {
@@ -189,7 +197,7 @@ export class SessionManager {
     this.sessions.set(name, session)
     const runtime = this.runtime(session)
 
-    if (this.config.mediaArchive.enabled) {
+    if (this.config.mediaArchive.enabled || this.shouldTrackMessageHistory(name)) {
       await cleanupMediaArchive(this.config, name).catch((error) => {
         logger.warn({ err: error, session: name }, 'Nettoyage initial de l’archive média impossible')
       })
@@ -309,6 +317,21 @@ export class SessionManager {
           continue
         }
 
+        const historyEnabled = this.shouldTrackMessageHistory(name)
+        const mutation = protocolMutation(message)
+        if (historyEnabled && mutation) {
+          await recordProtocolMutation(this.config, name, mutation).catch((error) => {
+            logger.debug({ err: error, session: name }, 'Modification/suppression de message non enregistrée')
+          })
+          continue
+        }
+
+        if (historyEnabled && !fromMe && (type === 'notify' || recentAppend)) {
+          await captureIncomingMessage(this.config, name, message, sock).catch((error) => {
+            logger.debug({ err: error, session: name, messageId: message.key.id ?? null }, 'Message original non archivé')
+          })
+        }
+
         const archiveBackfill =
           type === 'append' &&
           this.config.mediaArchive.backfillDays > 0 &&
@@ -331,6 +354,24 @@ export class SessionManager {
 
         await this.onMessage(runtime, message).catch((error) => {
           logger.error({ err: error, session: name }, 'Erreur de traitement d’un message')
+        })
+      }
+    })
+
+    sock.ev.on('messages.delete', async (event) => {
+      if (!this.shouldTrackMessageHistory(name) || !('keys' in event)) return
+      for (const key of event.keys) {
+        await markMessageDeleted(this.config, name, key).catch((error) => {
+          logger.debug({ err: error, session: name, messageId: key.id ?? null }, 'Suppression de message non enregistrée')
+        })
+      }
+    })
+
+    sock.ev.on('messages.update', async (updates) => {
+      if (!this.shouldTrackMessageHistory(name)) return
+      for (const entry of updates) {
+        await recordDirectMessageUpdate(this.config, name, entry.key, entry.update).catch((error) => {
+          logger.debug({ err: error, session: name, messageId: entry.key.id ?? null }, 'Modification de message non enregistrée')
         })
       }
     })

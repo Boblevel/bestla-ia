@@ -77,6 +77,43 @@ export interface AutomationSettings {
   }
 }
 
+export interface KnowledgeEntry {
+  id: string
+  kind: 'texte' | 'media'
+  label: string
+  content: string
+  mimetype: string | null
+  fileName: string | null
+  createdAt: string
+}
+
+export interface SessionAutomationSettings {
+  customerAi: {
+    enabled: boolean
+    instructions: string
+  }
+  secretary: {
+    enabled: boolean
+    instructions: string
+  }
+  knowledge: KnowledgeEntry[]
+  messageHistoryEnabled: boolean
+}
+
+export interface Appointment {
+  id: string
+  sessionName: string
+  chatId: string
+  createdBy: string
+  title: string
+  contact: string
+  scheduledAt: string
+  status: 'en_attente' | 'en_cours' | 'rappele' | 'annule' | 'echec'
+  createdAt: string
+  claimedAt: string | null
+  lastError: string | null
+}
+
 export interface DigitalProduct {
   id: string
   name: string
@@ -140,7 +177,7 @@ export interface WarningRecord {
 }
 
 interface DatabaseSchema {
-  version: 7
+  version: 8
   global: {
     publicMode: boolean | null
     prefix: string | null
@@ -151,7 +188,9 @@ interface DatabaseSchema {
   groups: Record<string, GroupSettings>
   warnings: Record<string, Record<string, WarningRecord>>
   automation: AutomationSettings
+  sessionAutomation: Record<string, SessionAutomationSettings>
   schedules: ScheduledJob[]
+  appointments: Appointment[]
   tickets: SupportTicket[]
   finances: FinanceEntry[]
   digitalProducts: DigitalProduct[]
@@ -214,14 +253,26 @@ const DEFAULT_AUTOMATION: AutomationSettings = {
   },
 }
 
+const DEFAULT_SESSION_AUTOMATION: SessionAutomationSettings = {
+  customerAi: { ...DEFAULT_AUTOMATION.customerAi, enabled: false },
+  secretary: {
+    enabled: false,
+    instructions: 'Agis comme mon secrétaire personnel. Aide-moi à organiser mes rendez-vous, rappels, notes et informations utiles avec des réponses courtes et pratiques.',
+  },
+  knowledge: [],
+  messageHistoryEnabled: false,
+}
+
 function initialData(): DatabaseSchema {
   return {
-    version: 7,
+    version: 8,
     global: { publicMode: null, prefix: null, disabledCommands: [], autoStatusView: false, autoEphemeral24h: false },
     groups: {},
     warnings: {},
     automation: cloneAutomation(DEFAULT_AUTOMATION),
+    sessionAutomation: {},
     schedules: [],
+    appointments: [],
     tickets: [],
     finances: [],
     digitalProducts: [],
@@ -252,6 +303,19 @@ function cloneAutomation(value: AutomationSettings): AutomationSettings {
   }
 }
 
+function cloneSessionAutomation(value: SessionAutomationSettings): SessionAutomationSettings {
+  return {
+    customerAi: { ...value.customerAi },
+    secretary: { ...value.secretary },
+    knowledge: value.knowledge.map((entry) => ({ ...entry })),
+    messageHistoryEnabled: value.messageHistoryEnabled,
+  }
+}
+
+function cloneAppointment(value: Appointment): Appointment {
+  return { ...value }
+}
+
 function cloneTicket(value: SupportTicket): SupportTicket {
   return { ...value }
 }
@@ -266,11 +330,13 @@ function cloneDigitalProduct(value: DigitalProduct): DigitalProduct {
 
 export class JsonDatabase {
   private readonly filePath: string
+  private readonly primarySessionName: string
   private data: DatabaseSchema = initialData()
   private writeQueue: Promise<void> = Promise.resolve()
 
   constructor(config: AppConfig) {
     this.filePath = path.join(config.dataDir, 'database.json')
+    this.primarySessionName = config.sessionNames[0] ?? 'main'
   }
 
   async init(): Promise<void> {
@@ -281,7 +347,7 @@ export class JsonDatabase {
       this.data = {
         ...initialData(),
         ...parsed,
-        version: 7,
+        version: 8,
         global: {
           ...initialData().global,
           ...parsed.global,
@@ -310,7 +376,9 @@ export class JsonDatabase {
           shortcuts: parsed.automation?.shortcuts ?? {},
           business: { ...DEFAULT_AUTOMATION.business, ...parsed.automation?.business },
         },
+        sessionAutomation: parsed.sessionAutomation ?? {},
         schedules: parsed.schedules ?? [],
+        appointments: parsed.appointments ?? [],
         tickets: parsed.tickets ?? [],
         finances: parsed.finances ?? [],
         digitalProducts: parsed.digitalProducts ?? [],
@@ -320,6 +388,12 @@ export class JsonDatabase {
         if (job.status === 'en_cours' && (!job.claimedAt || Date.parse(job.claimedAt) < staleBefore)) {
           job.status = 'en_attente'
           job.claimedAt = null
+        }
+      }
+      for (const appointment of this.data.appointments) {
+        if (appointment.status === 'en_cours' && (!appointment.claimedAt || Date.parse(appointment.claimedAt) < staleBefore)) {
+          appointment.status = 'en_attente'
+          appointment.claimedAt = null
         }
       }
     } catch (error) {
@@ -486,6 +560,44 @@ export class JsonDatabase {
     return result
   }
 
+  getSessionAutomation(sessionName: string): SessionAutomationSettings {
+    const stored = this.data.sessionAutomation[sessionName]
+    if (stored) {
+      return cloneSessionAutomation({
+        ...DEFAULT_SESSION_AUTOMATION,
+        ...stored,
+        customerAi: { ...DEFAULT_SESSION_AUTOMATION.customerAi, ...stored.customerAi },
+        secretary: { ...DEFAULT_SESSION_AUTOMATION.secretary, ...stored.secretary },
+        knowledge: stored.knowledge ?? [],
+        messageHistoryEnabled: stored.messageHistoryEnabled ?? false,
+      })
+    }
+    const legacy = this.data.automation.customerAi
+    return cloneSessionAutomation({
+      ...DEFAULT_SESSION_AUTOMATION,
+      customerAi: {
+        instructions: legacy.instructions || DEFAULT_SESSION_AUTOMATION.customerAi.instructions,
+        enabled: sessionName === this.primarySessionName ? legacy.enabled : false,
+      },
+    })
+  }
+
+  async mutateSessionAutomation(
+    sessionName: string,
+    mutator: (settings: SessionAutomationSettings) => void,
+  ): Promise<SessionAutomationSettings> {
+    let result = this.getSessionAutomation(sessionName)
+    await this.mutate((data) => {
+      const current = data.sessionAutomation[sessionName]
+        ? cloneSessionAutomation(data.sessionAutomation[sessionName])
+        : result
+      mutator(current)
+      data.sessionAutomation[sessionName] = cloneSessionAutomation(current)
+      result = cloneSessionAutomation(current)
+    })
+    return result
+  }
+
   listDigitalProducts(includeInactive = false): DigitalProduct[] {
     return this.data.digitalProducts
       .filter((product) => includeInactive || product.active)
@@ -535,6 +647,58 @@ export class JsonDatabase {
       if (!product) return
       product.deliveredCount += 1
       product.updatedAt = new Date().toISOString()
+    })
+  }
+
+  listAppointments(sessionName: string, createdBy?: string): Appointment[] {
+    return this.data.appointments
+      .filter((appointment) => appointment.sessionName === sessionName && (!createdBy || appointment.createdBy === createdBy))
+      .map(cloneAppointment)
+      .sort((left, right) => left.scheduledAt.localeCompare(right.scheduledAt))
+  }
+
+  async addAppointment(appointment: Appointment): Promise<void> {
+    await this.mutate((data) => {
+      data.appointments.push(cloneAppointment(appointment))
+    })
+  }
+
+  async cancelAppointment(id: string, sessionName: string, requester: string, owner: boolean): Promise<boolean> {
+    let cancelled = false
+    await this.mutate((data) => {
+      const appointment = data.appointments.find((entry) =>
+        entry.id === id
+        && entry.sessionName === sessionName
+        && (owner || entry.createdBy === requester)
+        && entry.status === 'en_attente'
+      )
+      if (!appointment) return
+      appointment.status = 'annule'
+      cancelled = true
+    })
+    return cancelled
+  }
+
+  async claimDueAppointments(now = new Date()): Promise<Appointment[]> {
+    const due: Appointment[] = []
+    await this.mutate((data) => {
+      for (const appointment of data.appointments) {
+        if (appointment.status !== 'en_attente' || Date.parse(appointment.scheduledAt) > now.getTime()) continue
+        appointment.status = 'en_cours'
+        appointment.claimedAt = now.toISOString()
+        due.push(cloneAppointment(appointment))
+      }
+    })
+    return due
+  }
+
+  async finishAppointment(id: string, success: boolean, errorMessage = ''): Promise<void> {
+    await this.mutate((data) => {
+      const appointment = data.appointments.find((entry) => entry.id === id)
+      if (!appointment) return
+      appointment.status = success ? 'rappele' : 'echec'
+      appointment.claimedAt = null
+      appointment.lastError = success ? null : errorMessage.slice(0, 500)
     })
   }
 
@@ -690,4 +854,4 @@ export class JsonDatabase {
   }
 }
 
-export { DEFAULT_AUTOMATION, DEFAULT_GROUP_SETTINGS }
+export { DEFAULT_AUTOMATION, DEFAULT_GROUP_SETTINGS, DEFAULT_SESSION_AUTOMATION }

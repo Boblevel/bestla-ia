@@ -1510,7 +1510,12 @@ async function sessionsPanel(reader: Interface): Promise<void> {
     }
     if (choice === '4') {
       await safely(reader, async () => {
-        const name = (await reader.question('Session à retirer : ')).trim()
+        const current = (await getSessionStates()).sessions
+        if (!current.length) throw new Error('Aucune session à retirer.')
+        current.forEach((session, index) => print(`${cyan(`[${index + 1}]`)} ${session.name} • ${maskPhone(session.phone)}`))
+        const selected = Number.parseInt((await reader.question('Choisis le numéro de la session à retirer : ')).trim(), 10)
+        const name = current[selected - 1]?.name
+        if (!name) throw new Error('Choix invalide.')
         if (await askConfirmation(reader, `Retirer définitivement ${name}`, 'RETIRER')) await removeSession([name, 'confirmer'])
       })
       continue
@@ -1581,8 +1586,11 @@ async function ownersPanel(reader: Interface): Promise<void> {
       await manageOwners(['ajouter', phone])
     })
     else if (choice === '2') await safely(reader, async () => {
-      const phone = (await reader.question('Numéro international à retirer : ')).trim()
-      if (await askConfirmation(reader, `Retirer ${maskPhone(cleanPhone(phone))}`, 'RETIRER')) await manageOwners(['retirer', phone, 'confirmer'])
+      if (!owners.length) throw new Error('Aucun propriétaire à retirer.')
+      const selected = Number.parseInt((await reader.question('Choisis le numéro du propriétaire à retirer : ')).trim(), 10)
+      const phone = owners[selected - 1]
+      if (!phone) throw new Error('Choix invalide.')
+      if (await askConfirmation(reader, `Retirer ${maskPhone(phone)}`, 'RETIRER')) await manageOwners(['retirer', phone, 'confirmer'])
     })
     else if (choice === '3') await safely(reader, () => manageOwners(['liste']))
     else {

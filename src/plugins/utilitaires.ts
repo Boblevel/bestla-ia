@@ -11,6 +11,42 @@ const QUESTIONS_COUPLE = [
   'Si notre histoire était un film, quel serait son titre ?',
 ]
 
+const TU_PREFERES_COUPLE = [
+  'Tu préfères une soirée tranquille à deux ou une sortie surprise préparée par l’autre ?',
+  'Tu préfères recevoir un long message romantique ou un petit vocal spontané ?',
+  'Tu préfères refaire votre premier rendez-vous ou découvrir un nouvel endroit ensemble ?',
+  'Tu préfères préparer un repas à deux ou commander quelque chose et regarder un film ?',
+  'Tu préfères une surprise matérielle ou une journée entièrement organisée pour vous deux ?',
+  'Tu préfères parler pendant des heures le soir ou faire une activité ensemble sans téléphone ?',
+]
+
+const SOUVENIRS_COUPLE = [
+  'Racontez chacun le premier détail que vous avez remarqué chez l’autre.',
+  'Choisissez un souvenir où vous avez beaucoup ri et racontez-le chacun de votre côté.',
+  'Quel moment simple passé ensemble aimeriez-vous refaire cette semaine ?',
+  'Citez chacun une phrase de l’autre que vous n’avez jamais oubliée.',
+  'Quel moment vous a fait comprendre que votre relation devenait importante ?',
+  'Choisissez une photo de vous deux et racontez ce qui s’est passé juste avant ou juste après.',
+]
+
+const DEFIS_COUPLE = [
+  'Envoyez-vous chacun un compliment précis que vous n’avez encore jamais formulé.',
+  'Chacun choisit une chanson qui lui rappelle l’autre et explique pourquoi, sans citer les paroles.',
+  'Pendant deux minutes, posez-vous uniquement des questions positives sur votre relation.',
+  'Chacun propose une petite activité à faire ensemble cette semaine ; tirez-en une au hasard.',
+  'Écrivez chacun trois mots qui décrivent votre couple puis comparez vos réponses.',
+  'Faites chacun un vocal de 15 secondes pour raconter votre meilleur moment récent à deux.',
+]
+
+const QUIZ_COUPLE = [
+  'Quel plat l’autre choisirait en premier s’il pouvait commander n’importe quoi maintenant ?',
+  'Quelle activité l’autre choisirait pour une journée totalement libre ?',
+  'Quel petit geste met le plus facilement l’autre de bonne humeur ?',
+  'Quel voyage l’autre aimerait le plus faire à deux ?',
+  'Quelle qualité l’autre pense-t-il que tu apprécies le plus chez lui ou elle ?',
+  'Si l’autre devait choisir un cadeau simple aujourd’hui, que préférerait-il recevoir ?',
+]
+
 const DEFIS_RIGOLOS = [
   'Envoie un vocal de 10 secondes avec une voix de présentateur télé.',
   'Fais un compliment sans utiliser les mots beau, belle, gentil ou gentille.',
@@ -242,6 +278,38 @@ export const utilityCommands: BotCommand[] = [
       if (!target) return
       const score = stablePercent(ctx.sender, target)
       await ctx.reply(`💘 Compatibilité entre ${jidToMention(ctx.sender)} et ${jidToMention(target)} : *${score} %*\n\nC’est juste pour s’amuser 😄`, [ctx.sender, target])
+    },
+  },
+  {
+    name: 'tupreferescouple',
+    description: 'Lance une question Tu préfères spécialement pensée pour un couple.',
+    category: 'Jeux',
+    async execute(ctx) {
+      await ctx.reply(`💞 *TU PRÉFÈRES - COUPLE*\n${TU_PREFERES_COUPLE[randomInt(0, TU_PREFERES_COUPLE.length)]}`)
+    },
+  },
+  {
+    name: 'souvenircouple',
+    description: 'Propose un souvenir à raconter ou comparer à deux.',
+    category: 'Jeux',
+    async execute(ctx) {
+      await ctx.reply(`📸 *SOUVENIR COUPLE*\n${SOUVENIRS_COUPLE[randomInt(0, SOUVENIRS_COUPLE.length)]}`)
+    },
+  },
+  {
+    name: 'deficouple',
+    description: 'Donne un petit défi complice à faire à deux.',
+    category: 'Jeux',
+    async execute(ctx) {
+      await ctx.reply(`💗 *DÉFI COUPLE*\n${DEFIS_COUPLE[randomInt(0, DEFIS_COUPLE.length)]}`)
+    },
+  },
+  {
+    name: 'quizcouple',
+    description: 'Pose une question pour tester à quel point vous vous connaissez.',
+    category: 'Jeux',
+    async execute(ctx) {
+      await ctx.reply(`🧩 *QUIZ COUPLE*\n${QUIZ_COUPLE[randomInt(0, QUIZ_COUPLE.length)]}`)
     },
   },
   {

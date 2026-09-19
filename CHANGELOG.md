@@ -1,3 +1,16 @@
+## 2026-09-19 — V18.2 — multi-session indépendant, secrétaire, rendez-vous et mémoire IA
+
+- Correction d’AssistantAuto / Service client IA en multi-session : chaque numéro Bestla possède désormais son propre état activé/désactivé, sa consigne et sa base de connaissances ; l’activation d’un numéro ne modifie plus un autre numéro.
+- Ajout de `.rendezvous` pour créer, lister et supprimer des rendez-vous ; le planificateur envoie le rappel dans la discussion où le rendez-vous a été créé.
+- Ajout de `.secretaire` : mode secrétaire personnel IA séparé par session, capable d’utiliser les rendez-vous et la base de connaissances du numéro concerné.
+- Ajout de `.connaissance` : ajout de texte ou analyse d’une photo, vidéo, audio ou document cité afin d’alimenter l’assistant IA de la session.
+- Ajout de `.historique` et `.original` : après activation, Bestla conserve localement les originaux des messages et médias reçus afin de restituer le contenu supprimé ou modifié dans les discussions privées et les groupes.
+- Ajout de `.lienmembres` : envoi privé d’un lien à un nombre choisi de membres du groupe, avec personnalisation `{numero}` et `{lien}`.
+- Ajout de `.copiermembres` : ajout d’un nombre choisi de membres d’un groupe source vers le groupe courant, dans les limites et réponses de confidentialité de WhatsApp.
+- Panneau : la suppression d’une session WhatsApp ou d’un propriétaire se fait maintenant en choisissant son numéro dans la liste au lieu de ressaisir son nom ou son numéro complet.
+- Jeux couple ajoutés : `.tupreferescouple`, `.souvenircouple`, `.deficouple` et `.quizcouple`.
+- Les nouveaux réglages, connaissances, rendez-vous et historiques restent séparés par session ; les fichiers de données restent sous `data/` et ne sont pas destinés à GitHub.
+
 ## 2026-08-18 — V18.1.2 — routage LID fiable pour l’envoi vue unique
 
 - Correction ciblée de `.envoyervueunique` pour Baileys 7.x : Bestla privilégie désormais le LID (`@lid`) déjà connu du chat ou du magasin `signalRepository.lidMapping` avant d’envoyer le média.

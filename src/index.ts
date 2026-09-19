@@ -26,6 +26,7 @@ async function main(): Promise<void> {
     (runtime, message) => router.handleMessage(runtime, message),
     (runtime, event) => router.handleParticipants(runtime, event),
     () => db.getAutoStatusView(),
+    (sessionName) => db.getSessionAutomation(sessionName).messageHistoryEnabled,
   )
 
   await sessions.start()
