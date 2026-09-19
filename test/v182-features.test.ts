@@ -86,5 +86,6 @@ test('generervideo utilise une vraie génération Veo sans secours image locale'
   assert.doesNotMatch(generateBlock, /generateImage\(prompt\)/)
   assert.match(media, /:predictLongRunning/)
   assert.match(media, /generatedSamples/)
+  assert.doesNotMatch(media, /numberOfVideos/)
   assert.match(config, /veo-3\.1-generate-preview/)
 })

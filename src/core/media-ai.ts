@@ -470,7 +470,6 @@ export class MediaAiService {
         instances: [{ prompt: text }],
         parameters: {
           aspectRatio: this.config.mediaAi.videoAspectRatio,
-          numberOfVideos: 1,
           resolution: '720p',
         },
       }),
