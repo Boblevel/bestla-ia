@@ -60,9 +60,9 @@ const schema = z.object({
   MEDIA_AI_IMAGE_EDIT_MODEL: z.string().default('gemini-3.1-flash-image'),
   MEDIA_AI_IMAGE_ASPECT_RATIO: z.string().default('1:1'),
   MEDIA_AI_IMAGE_SIZE: z.enum(['512px', '1K', '2K', '4K']).default('1K'),
-  MEDIA_AI_VIDEO_MODEL: z.string().default('Lightricks/LTX-Video'),
-  MEDIA_AI_VIDEO_SPACE: z.string().default('https://lightricks-ltx-video-distilled.hf.space'),
-  MEDIA_AI_VIDEO_API_NAME: z.string().default('/text_to_video'),
+  MEDIA_AI_VIDEO_MODEL: z.string().default('MiniMaxAI/MiniMax-H3'),
+  MEDIA_AI_VIDEO_SPACE: z.string().default('https://multimodalart-minimax-h3.hf.space'),
+  MEDIA_AI_VIDEO_API_NAME: z.string().default('/generate'),
   MEDIA_AI_VIDEO_ASPECT_RATIO: z.enum(['9:16', '16:9']).default('9:16'),
   MEDIA_AI_VIDEO_TIMEOUT_SECONDS: z.coerce.number().int().min(60).max(1_800).default(900),
 }).superRefine((value, ctx) => {
@@ -133,17 +133,19 @@ function normalizeGeminiTextModel(value: string): string {
 
 function normalizeHuggingFaceVideoModel(value: string): string {
   const model = value.trim()
-  return model || 'Lightricks/LTX-Video'
+  if (!model || model === 'Lightricks/LTX-Video') return 'MiniMaxAI/MiniMax-H3'
+  return model
 }
 
 function normalizeHuggingFaceSpaceUrl(value: string): string {
   const url = value.trim().replace(/\/+$/, '')
-  return url || 'https://lightricks-ltx-video-distilled.hf.space'
+  if (!url || url === 'https://lightricks-ltx-video-distilled.hf.space') return 'https://multimodalart-minimax-h3.hf.space'
+  return url
 }
 
 function normalizeHuggingFaceApiName(value: string): string {
   const apiName = value.trim()
-  if (!apiName) return '/text_to_video'
+  if (!apiName || apiName === '/text_to_video' || apiName === 'text_to_video') return '/generate'
   return apiName.startsWith('/') ? apiName : `/${apiName}`
 }
 
