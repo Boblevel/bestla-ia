@@ -71,7 +71,7 @@
   "src/plugins/textmaker.ts": "bb37fd10e99afde61706a764d05d17afd4f2b386ec121d57bd2b32f9d577c88d",
   "src/plugins/tts.ts": "365287d255009961246fda4476c4c33f0b268a4caa02de2fbaa4e4b9daa16a9b",
   "src/plugins/user.ts": "2bce9dad6357ec6f00c5c32f179886f463adc010e49aac84f47d0c11e2b539e1",
-  "src/plugins/utilitaires.ts": "b78c0750a0bfa9bf80bea225f6abf3e8a1f4358b5cb7b3ee3bf856bc5abbaac9",
+  "src/plugins/utilitaires.ts": "35884ab84c4cae5234d92179d92b7856d1a8920d6594005d1e97c0eb4b776918",
   "src/plugins/whatsapp.ts": "ef7864e6c56bbe765d78c9695fe78136574baf2f3c16859e718f8ffcd8ab7768",
   "src/types.ts": "c8200d9b04a96eadad8a0283c5ba27fb3d9a716a352140b23cd2da28ec9054c8",
   "src/utils/brand.ts": "07616bcecd69e803d76621caadccba1639926f2564d898dc97b8950afa847d83",
@@ -90,7 +90,7 @@
   "test/branding-policy.test.ts": "a0c472c90025acea77e4508eae49be245fb59c442736fec0d6ae951177c95bbc",
   "test/calculator.test.ts": "24e35c16c6d99a232af518bda2f911db0871d5b407c80fdb6356366e3d2de19c",
   "test/cli.test.ts": "556304c4c69bed37d2a866760a3f19c81abcff2b5cf277bd535e4ed146a20426",
-  "test/commands.test.ts": "8627d6dd94feb68a27dc7918af9155834b2363d122dca1ac0ce9d89ee0df5e43",
+  "test/commands.test.ts": "30ec800db8afb2fa5a12dc947e8b21845c1730260e1a5a30721cfd377b83a96a",
   "test/database.test.ts": "3da16cb300072e369edc774b0c1bbab4953f4d4b136c62d62643575177be7e9d",
   "test/media-ai-pool.test.ts": "e1069bd8b7216d2b54d1840c16a41202e34d19cff557b1bc60f7c022f96dc6c1",
   "test/message-status.test.ts": "dce585d7d9c0656f35887673ddd630ef713635968978150265779fd1c311965e",
@@ -104,6 +104,6 @@
   "test/tts.test.ts": "b3846dbbb40ab1a8e77ff524179f40c8d8e7265d73ce8972d0fb1b54b9ef6d5d",
   "test/v180-features.test.ts": "0f8a06a2c3cc86fa0639e27c55c05d8feebe9f53466bd0754e67ee572899ae21",
   "test/v181-features.test.ts": "a6b4569d91c794307a5097c2c15245d30e880809cfaccb999d114e93209a4314",
-  "test/v182-features.test.ts": "173ce5185e5421d3f3fc160c129fb2f92175522b63cf80a1aab4e6820fddc161",
+  "test/v182-features.test.ts": "c1c9cfa49f85c895b8dfbd82c9a9480bca3c7eb6de026a60234021367c190ad5",
   "tsconfig.json": "7ff18c088950b4d24629c98abb6d478114709acda7b7abd637ab4aa044e3d343"
 }
