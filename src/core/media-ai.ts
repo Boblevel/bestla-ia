@@ -477,8 +477,27 @@ export class MediaAiService {
     return null
   }
 
+  private defaultHuggingFaceVideoPayload(prompt: string): Record<string, unknown> {
+    const { width, height } = this.aspectRatioDimensions()
+    return {
+      prompt,
+      negative_prompt: 'worst quality, inconsistent motion, blurry, jittery, distorted',
+      input_image_filepath: null,
+      input_video_filepath: null,
+      height_ui: height,
+      width_ui: width,
+      mode: 'text-to-video',
+      duration_ui: 5,
+      ui_frames_to_use: 9,
+      seed_ui: 42,
+      randomize_seed: true,
+      ui_guidance_scale: 3,
+      improve_texture_flag: true,
+    }
+  }
+
   private buildHuggingFaceVideoPayload(schema: unknown, prompt: string): Record<string, unknown> {
-    const payload: Record<string, unknown> = { prompt }
+    const payload = this.defaultHuggingFaceVideoPayload(prompt)
     const endpoint = record(schema)
     const parameters = Array.isArray(endpoint?.parameters) ? endpoint.parameters : []
     for (const raw of parameters) {
@@ -493,18 +512,40 @@ export class MediaAiService {
   private buildHuggingFaceLegacyData(schema: unknown, prompt: string): unknown[] {
     const endpoint = record(schema)
     const parameters = Array.isArray(endpoint?.parameters) ? endpoint.parameters : []
-    if (!parameters.length) return [prompt]
+    if (!parameters.length) {
+      const payload = this.defaultHuggingFaceVideoPayload(prompt)
+      return [
+        payload.prompt,
+        payload.negative_prompt,
+        payload.input_image_filepath,
+        payload.input_video_filepath,
+        payload.height_ui,
+        payload.width_ui,
+        payload.mode,
+        payload.duration_ui,
+        payload.ui_frames_to_use,
+        payload.seed_ui,
+        payload.randomize_seed,
+        payload.ui_guidance_scale,
+        payload.improve_texture_flag,
+      ]
+    }
     return parameters.map((raw) => this.huggingFaceVideoParameterValue(record(raw), prompt))
   }
 
   private async huggingFaceSpaceInfo(): Promise<unknown> {
-    const response = await fetch(`${this.config.mediaAi.videoSpace}/gradio_api/info`, {
-      signal: AbortSignal.timeout(45_000),
-      headers: this.huggingFaceHeaders(false),
-    })
-    const payload = await responseJson(response)
-    if (!response.ok) throw mediaError('huggingface', response.status, payload)
-    return payload
+    try {
+      const response = await fetch(`${this.config.mediaAi.videoSpace}/gradio_api/info`, {
+        signal: AbortSignal.timeout(120_000),
+        headers: this.huggingFaceHeaders(false),
+      })
+      const payload = await responseJson(response)
+      if (!response.ok) throw mediaError('huggingface', response.status, payload)
+      return payload
+    } catch (error) {
+      if (error instanceof MediaAiError) throw error
+      throw new MediaAiError('Connexion au Space Hugging Face impossible ou trop lente. Le Space ZeroGPU peut être en cours de démarrage ; réessaie dans quelques instants.')
+    }
   }
 
   private resolveHuggingFaceEndpoint(info: unknown): { apiName: string; schema?: JsonRecord } {
@@ -535,66 +576,92 @@ export class MediaAiService {
   }
 
   private async downloadHuggingFace(url: string, maxBytes = 100 * 1024 * 1024): Promise<{ buffer: Buffer; mimetype: string }> {
-    const response = await fetch(url, {
-      redirect: 'follow',
-      signal: AbortSignal.timeout(120_000),
-      headers: this.huggingFaceHeaders(false),
-    })
-    if (!response.ok) {
-      const payload = await responseJson(response)
-      throw mediaError('huggingface', response.status, payload)
+    try {
+      const response = await fetch(url, {
+        redirect: 'follow',
+        signal: AbortSignal.timeout(180_000),
+        headers: this.huggingFaceHeaders(false),
+      })
+      if (!response.ok) {
+        const payload = await responseJson(response)
+        throw mediaError('huggingface', response.status, payload)
+      }
+      return responseBuffer(response, maxBytes)
+    } catch (error) {
+      if (error instanceof MediaAiError) throw error
+      throw new MediaAiError('La vidéo Hugging Face a été générée mais son téléchargement a échoué. Réessaie dans quelques instants.')
     }
-    return responseBuffer(response, maxBytes)
   }
 
   private async parseHuggingFacePoll(eventUrl: string, deadline: number): Promise<{ url: string; mimetype: string }> {
     while (Date.now() < deadline) {
       const remaining = Math.max(1_000, deadline - Date.now())
-      const response = await fetch(eventUrl, {
-        signal: AbortSignal.timeout(Math.min(45_000, remaining)),
-        headers: {
-          ...this.huggingFaceHeaders(false),
-          accept: 'text/event-stream, application/json',
-        },
-      })
-      const text = await response.text()
+      let response: Response
+      try {
+        response = await fetch(eventUrl, {
+          signal: AbortSignal.timeout(Math.min(180_000, remaining)),
+          headers: {
+            ...this.huggingFaceHeaders(false),
+            accept: 'text/event-stream, application/json',
+          },
+        })
+      } catch {
+        // Une génération ZeroGPU peut rester silencieuse plus d'une minute pendant
+        // l'attente GPU ou l'inférence. On reprend le suivi tant que le délai global
+        // MEDIA_AI_VIDEO_TIMEOUT_SECONDS n'est pas dépassé.
+        if (Date.now() < deadline) {
+          await sleep(3_000)
+          continue
+        }
+        break
+      }
+
+      const body = await response.text()
       if (!response.ok) {
         let payload: unknown = {}
         try {
-          payload = JSON.parse(text)
+          payload = JSON.parse(body)
         } catch {}
         throw mediaError('huggingface', response.status, payload)
       }
 
-      const events = text.split(/\r?\n/).filter((line) => line.startsWith('data: ')).map((line) => line.slice(6).trim()).filter(Boolean)
-      if (events.length === 0) {
-        try {
-          const payload = JSON.parse(text)
-          const file = extractHuggingFaceVideoFile(payload, this.config.mediaAi.videoSpace)
-          if (file) return file
-        } catch {}
-        await sleep(4_000)
-        continue
-      }
-
-      for (const raw of events) {
-        let payload: unknown
-        try {
-          payload = JSON.parse(raw)
-        } catch {
-          continue
-        }
-        const root = record(payload)
-        const errorMessage = stringValue(root?.error) ?? providerMessage(payload)
-        if (errorMessage) throw new MediaAiError(`Hugging Face a échoué : ${errorMessage.slice(0, 240)}`)
-        const event = stringValue(root?.event)?.toLowerCase()
-        if (event === 'complete' || event === 'success' || stringValue(root?.msg)?.toLowerCase() === 'process_completed') {
+      // Gradio renvoie du SSE sous la forme :
+      // event: complete
+      // data: [{...fichier vidéo...}, seed]
+      // Le nom de l'évènement n'est donc pas forcément contenu dans le JSON "data".
+      const blocks = body.split(/\r?\n\r?\n/)
+      for (const block of blocks) {
+        const lines = block.split(/\r?\n/)
+        const event = lines.find((line) => line.startsWith('event:'))?.slice(6).trim().toLowerCase()
+        const dataLines = lines.filter((line) => line.startsWith('data:')).map((line) => line.slice(5).trim()).filter(Boolean)
+        for (const raw of dataLines) {
+          let payload: unknown
+          try {
+            payload = JSON.parse(raw)
+          } catch {
+            continue
+          }
+          const root = record(payload)
+          const errorMessage = stringValue(root?.error) ?? providerMessage(payload)
+          if (event === 'error' || errorMessage) {
+            throw new MediaAiError(`Hugging Face a échoué : ${(errorMessage ?? 'erreur de génération vidéo').slice(0, 240)}`)
+          }
           const file = extractHuggingFaceVideoFile(root?.output ?? root?.data ?? payload, this.config.mediaAi.videoSpace)
           if (file) return file
         }
+        if (event === 'complete') {
+          throw new MediaAiError('Hugging Face a terminé la génération mais n’a renvoyé aucun fichier vidéo exploitable.')
+        }
       }
 
-      await sleep(4_000)
+      // Compatibilité avec les réponses JSON non-SSE.
+      try {
+        const payload = JSON.parse(body)
+        const file = extractHuggingFaceVideoFile(payload, this.config.mediaAi.videoSpace)
+        if (file) return file
+      } catch {}
+
+      await sleep(3_000)
     }
 
     throw new MediaAiError(`La génération vidéo a dépassé ${this.config.mediaAi.videoTimeoutSeconds} secondes.`)
@@ -607,26 +674,38 @@ export class MediaAiService {
 
     const timeoutMs = this.config.mediaAi.videoTimeoutSeconds * 1_000
     const deadline = Date.now() + timeoutMs
-    const info = await this.huggingFaceSpaceInfo()
-    const endpoint = this.resolveHuggingFaceEndpoint(info)
+    // Le Space LTX officiel expose /text_to_video avec un schéma stable connu.
+    // On appelle directement l'API afin de ne pas perdre jusqu'à plusieurs minutes
+    // à réveiller le Space uniquement pour relire /gradio_api/info.
+    const endpoint: { apiName: string; schema?: JsonRecord } = { apiName: this.config.mediaAi.videoApiName }
     const apiSegment = normalizedApiSegment(endpoint.apiName)
     const namedPayload = this.buildHuggingFaceVideoPayload(endpoint.schema, text)
     const legacyPayload = { data: this.buildHuggingFaceLegacyData(endpoint.schema, text) }
     const attempts = [
-      { url: `${this.config.mediaAi.videoSpace}/gradio_api/call/${apiSegment}`, body: legacyPayload },
+      // Route officielle documentée pour les Gradio Spaces récents.
       { url: `${this.config.mediaAi.videoSpace}/gradio_api/call/v2/${apiSegment}`, body: namedPayload },
+      // Compatibilité avec les versions Gradio antérieures.
+      { url: `${this.config.mediaAi.videoSpace}/gradio_api/call/${apiSegment}`, body: legacyPayload },
       { url: `${this.config.mediaAi.videoSpace}/api/predict/${apiSegment}`, body: legacyPayload },
     ]
 
     let payload: unknown = {}
     let lastStatus = 0
+    let lastNetworkError = false
     for (const attempt of attempts) {
-      const response = await fetch(attempt.url, {
-        method: 'POST',
-        signal: AbortSignal.timeout(Math.min(timeoutMs, 120_000)),
-        headers: this.huggingFaceHeaders(true),
-        body: JSON.stringify(attempt.body),
-      })
+      let response: Response
+      try {
+        response = await fetch(attempt.url, {
+          method: 'POST',
+          signal: AbortSignal.timeout(Math.min(timeoutMs, 180_000)),
+          headers: this.huggingFaceHeaders(true),
+          body: JSON.stringify(attempt.body),
+        })
+      } catch {
+        lastNetworkError = true
+        continue
+      }
+      lastNetworkError = false
       payload = await responseJson(response)
       if (response.ok) {
         lastStatus = 0
@@ -638,6 +717,9 @@ export class MediaAiService {
       if (![404, 405, 422].includes(response.status)) throw mediaError('huggingface', response.status, payload)
     }
     if (lastStatus !== 0) throw mediaError('huggingface', lastStatus, payload)
+    if (lastNetworkError) {
+      throw new MediaAiError('Connexion au générateur vidéo Hugging Face impossible. Le Space ZeroGPU est peut-être en démarrage ou temporairement saturé ; réessaie dans quelques instants.')
+    }
 
     const root = record(payload)
     const eventId = stringValue(root?.event_id) ?? stringValue(root?.eventId)
