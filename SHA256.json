@@ -36,7 +36,7 @@
   "src/core/cloudflare-pool.ts": "32e74bfb32442f3f0ca5c1474a658dc6f4edbd2634bf21eb37917d82c1664df8",
   "src/core/database.ts": "6f91e336c8edc06c6002646f92a3cc6f9f25f2519279b81e601dcd85a8cb74ea",
   "src/core/logger.ts": "44907170250459d03f3502de5f1e927dfd95c8bc4a0ef8ccd9b3c038a28ce305",
-  "src/core/media-ai.ts": "8d545c65bde82759deb5e0f856f778ff10e7ef4ee6214f6351c65f9c183d5e23",
+  "src/core/media-ai.ts": "ff96d6655b60fcf7a95909d24c61819269b8f0d6e6cbd91c40cfed909a1fac18",
   "src/core/media-archive.ts": "825f0da0af0f5108f055cf0efe1469fcef4fd6f88ce969550362afa110908dc7",
   "src/core/message-history.ts": "1b4690b193525e7463e672d4e0227d34ad3302d200e00e0f2daa0aa8f7d35cc0",
   "src/core/moderation.ts": "75262ce96cfa75efc865e44d52a184976757431f1e62bc2f9ee622ff62779598",
@@ -104,7 +104,7 @@
   "test/tts.test.ts": "b3846dbbb40ab1a8e77ff524179f40c8d8e7265d73ce8972d0fb1b54b9ef6d5d",
   "test/v180-features.test.ts": "0f8a06a2c3cc86fa0639e27c55c05d8feebe9f53466bd0754e67ee572899ae21",
   "test/v181-features.test.ts": "a6b4569d91c794307a5097c2c15245d30e880809cfaccb999d114e93209a4314",
-  "test/v182-features.test.ts": "02b0319e62b864bd0975966af7f80c76341375b7f7c182eba7f285c8e8f99083",
+  "test/v182-features.test.ts": "c61072ee184b78f26d27b5ed9b1eba27b8bb35b54664f76a535eeb5942c87efd",
   "tsconfig.json": "7ff18c088950b4d24629c98abb6d478114709acda7b7abd637ab4aa044e3d343",
   "env.example.media-archive": "e5c1b0a09107b11d078539420ee82f111706cc687791a641537048b6c5642e5a"
 }
