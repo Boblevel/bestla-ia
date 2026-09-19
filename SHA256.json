@@ -1,6 +1,6 @@
 {
   ".dockerignore": "6ed700d78295091fa61b0ef29a99458e6b57b2e2730e711ca9c22a6370c34319",
-  ".env.example": "a5969e46b05d6b359b45370604fa87e2c20b88ec38d59bb09f16106e219f8232",
+  ".env.example": "4b46ab47a181b4413b87072dbd411d64b292255f13784b012bcb86db54a7d31c",
   ".github/workflows/verification.yml": "7365249f0f73775d86c1184a6910d7cd31668d532e11bc62cbc01cdda6ac0525",
   ".gitignore": "5d6e7cbad78243a678627e7036715566533fb93dd01b58a863fb3be718c60b57",
   "CHANGELOG.md": "fb49863998b0e2a1eda2c5847a43f7a035cd58b01d91ab54e84d71434b1e3f60",
@@ -28,7 +28,7 @@
   "scripts/generate_pm2_cheatsheet.py": "c116460407c33f0d4a22eaf518bdac9ced6d8a31c858eec6a77ec11ad1022d0b",
   "scripts/platform.sh": "5ded241476eaab78ce73bc6bee1de6006d3636f89f5dcab298c32ef09d960fdf",
   "src/cli.ts": "cd57eb15ae7e62039d9d119155d65196a4828faa196c69409b944d0bf6948ac2",
-  "src/config.ts": "0f132b204ec537eb5bc5184f9068636f835829f08933270ff0f07877e8173709",
+  "src/config.ts": "9f1a53518c1cfe824f9ec6dde0ca79cf2adaa34bbeaa9d19e028bc5ba5f501d2",
   "src/core/ai.ts": "e8bfabd04e9c1ddc4b3084d44ee11070d64514516bcfe0e78532f9e14c80bd9d",
   "src/core/api.ts": "77bed00d203ef3c5105a3e5d3235b30b3a458f9d02e28fa7249b3abab52f1f21",
   "src/core/apk-downloader.ts": "ceecb92d758522fa45f7dec101282a972149e54e999364d7cacf9462938d6aa9",
@@ -36,7 +36,7 @@
   "src/core/cloudflare-pool.ts": "32e74bfb32442f3f0ca5c1474a658dc6f4edbd2634bf21eb37917d82c1664df8",
   "src/core/database.ts": "6f91e336c8edc06c6002646f92a3cc6f9f25f2519279b81e601dcd85a8cb74ea",
   "src/core/logger.ts": "44907170250459d03f3502de5f1e927dfd95c8bc4a0ef8ccd9b3c038a28ce305",
-  "src/core/media-ai.ts": "3ce5c89de7fd5b1fc5d8fc038bde7221300f1e21a98536d114070fd33dac7622",
+  "src/core/media-ai.ts": "0d6abcce741100b4f8d2ee6cedf5169d4076ee3f670ebea365426bd1f548bf07",
   "src/core/media-archive.ts": "825f0da0af0f5108f055cf0efe1469fcef4fd6f88ce969550362afa110908dc7",
   "src/core/message-history.ts": "1b4690b193525e7463e672d4e0227d34ad3302d200e00e0f2daa0aa8f7d35cc0",
   "src/core/moderation.ts": "75262ce96cfa75efc865e44d52a184976757431f1e62bc2f9ee622ff62779598",
@@ -54,7 +54,7 @@
   "src/plugins/advanced-media.ts": "ebb7e12bd8921f8b8bad4817900d83833418c73294e526af0b7a36ace56dfc79",
   "src/plugins/ai.ts": "c3a7a636b33388b1ba4e54e5c8bfc14cb70d0f2b83990561faa9cb0d0cb75f05",
   "src/plugins/apk.ts": "07816bdb40fce52ae422e28167ce094fd90c78936b6cd4ef2e021b78d18f5dad",
-  "src/plugins/automation.ts": "223c93221a5b7a60afe70961810d1d664c4882322f1e0ac2fa88b0eaeb0fb131",
+  "src/plugins/automation.ts": "8981f325ef8bc3b4e0874c36d971f475ccbec83b5c439754648d10ff7326f7ba",
   "src/plugins/budget.ts": "9c9d5366ace4745d6f381b4f34390e0e74f33203d9e1c51fb9305eddf40cf75f",
   "src/plugins/business.ts": "a458a9a7b9a15d689a96085d4b32b8d60d4cdbde079812246831848213c166d8",
   "src/plugins/commerce.ts": "baa0ea1b9f2277409d7765f2c7270e81e9b64ba13749a2922257a0412d56d2ae",
@@ -104,7 +104,7 @@
   "test/tts.test.ts": "b3846dbbb40ab1a8e77ff524179f40c8d8e7265d73ce8972d0fb1b54b9ef6d5d",
   "test/v180-features.test.ts": "0f8a06a2c3cc86fa0639e27c55c05d8feebe9f53466bd0754e67ee572899ae21",
   "test/v181-features.test.ts": "a6b4569d91c794307a5097c2c15245d30e880809cfaccb999d114e93209a4314",
-  "test/v182-features.test.ts": "fc52b03b4d8a85569d47751bcfda10f3405cc31a77ea2a2a663b495ad4f4314e",
+  "test/v182-features.test.ts": "6c86cc011f22cdf654fb608438e392e6297dcbb3a069dc680c9f882ae0b04bd6",
   "tsconfig.json": "7ff18c088950b4d24629c98abb6d478114709acda7b7abd637ab4aa044e3d343",
-  "env.example.media-archive": "bf11cb0d3d80929eb399d2cac47533e491152adbbf354f1ddaf801a6a77eec96"
+  "env.example.media-archive": "964529743462ae52693ea664a11402ef2fbefcf737fc45fa4d4a2e2c9c5ffb8c"
 }
