@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { proto, WAMessage, WASocket } from '@whiskeysockets/baileys'
+import { WAMessageStubType, type proto, type WAMessage, type WASocket } from '@whiskeysockets/baileys'
 import type { AppConfig } from '../config.js'
 import { findMedia } from '../utils/message.js'
 import { messageText, messageType, unwrapMessage } from '../utils/text.js'
@@ -202,7 +202,20 @@ export async function recordDirectMessageUpdate(
   update: unknown,
 ): Promise<void> {
   if (!update || typeof update !== 'object') return
-  const message = (update as { message?: proto.IMessage | null }).message
+  const directUpdate = update as {
+    message?: proto.IMessage | null
+    messageStubType?: unknown
+  }
+
+  // Baileys 7 transforme un ProtocolMessage.REVOKE reçu en messages.update
+  // avec message=null et messageStubType=REVOKE. Il faut donc traiter la
+  // suppression avant le garde qui ignore les mises à jour sans message.
+  if (directUpdate.message === null && directUpdate.messageStubType === WAMessageStubType.REVOKE) {
+    await markMessageDeleted(config, sessionName, key)
+    return
+  }
+
+  const message = directUpdate.message
   if (!message) return
   const wrapped: WAMessage = { key, message }
   const mutation = protocolMutation(wrapped)
