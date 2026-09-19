@@ -38,7 +38,7 @@
   "src/core/logger.ts": "44907170250459d03f3502de5f1e927dfd95c8bc4a0ef8ccd9b3c038a28ce305",
   "src/core/media-ai.ts": "763cd2e773bfe3245966fdbf42edc10e5b5a38c23b21203bcc0fabbc5b6e688e",
   "src/core/media-archive.ts": "825f0da0af0f5108f055cf0efe1469fcef4fd6f88ce969550362afa110908dc7",
-  "src/core/message-history.ts": "47223f8d7267ec9716931bbc6a1c5765e9be75968333c0c94f372f1b0f03cdd5",
+  "src/core/message-history.ts": "1b4690b193525e7463e672d4e0227d34ad3302d200e00e0f2daa0aa8f7d35cc0",
   "src/core/moderation.ts": "75262ce96cfa75efc865e44d52a184976757431f1e62bc2f9ee622ff62779598",
   "src/core/rate-limiter.ts": "6cd5eede0b56e56f736ca67f0256585ba549ef6f39bfe9584930df5fca61c5b3",
   "src/core/registry.ts": "8ca378e93161c6125dc7a5add0f66fa18a35c1ed5b336e48dcd4f52f4e22305f",
