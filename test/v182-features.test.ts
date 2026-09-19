@@ -30,6 +30,14 @@ test('V18.2 ajoute les deux outils groupe demandés et les jeux couple', async (
   const games = await readFile(new URL('../src/plugins/utilitaires.ts', import.meta.url), 'utf8')
   assert.match(group, /name: 'lienmembres'/)
   assert.match(group, /name: 'copiermembres'/)
+  assert.match(group, /groupGetInviteInfo\(sourceCode\)/)
+  assert.match(group, /groupGetInviteInfo\(destinationCode\)/)
+  assert.match(group, /lienmembres 20 \| LIEN_GROUPE_SOURCE \| LIEN_GROUPE_DESTINATION/)
+  assert.match(group, /copiermembres 20 \| LIEN_GROUPE_SOURCE \| LIEN_GROUPE_DESTINATION/)
+  const linkMembersBlock = group.slice(group.indexOf("name: 'lienmembres'"), group.indexOf("name: 'copiermembres'"))
+  const copyMembersBlock = group.slice(group.indexOf("name: 'copiermembres'"))
+  assert.doesNotMatch(linkMembersBlock, /groupOnly:\s*true/)
+  assert.doesNotMatch(copyMembersBlock, /groupOnly:\s*true/)
   for (const command of ['tupreferescouple', 'souvenircouple', 'deficouple', 'quizcouple']) {
     assert.match(games, new RegExp(`name: '${command}'`))
   }
@@ -37,8 +45,10 @@ test('V18.2 ajoute les deux outils groupe demandés et les jeux couple', async (
 
 test('le panneau retire sessions et propriétaires par choix numérique', async () => {
   const cli = await readFile(new URL('../src/cli.ts', import.meta.url), 'utf8')
-  assert.match(cli, /Choisis le numéro de la session à retirer/)
+  assert.match(cli, /Choisis le numéro WhatsApp à retirer/)
+  assert.match(cli, /reader\.question\('Numéro : '\)/)
   assert.match(cli, /current\[selected - 1\]\?\.name/)
+  assert.match(cli, /removeSession\(\[name, 'confirmer'\]\)/)
   assert.match(cli, /Choisis le numéro du propriétaire à retirer/)
   assert.match(cli, /owners\[selected - 1\]/)
 })

@@ -40,6 +40,17 @@ function pendingRequestJid(entry: Record<string, string>): string | undefined {
   return Object.values(entry).find((value) => /@(?:s\.whatsapp\.net|lid)$/i.test(value))
 }
 
+function groupInviteCode(rawLink: string): string | undefined {
+  try {
+    const parsed = new URL(rawLink.trim())
+    if (parsed.protocol !== 'https:' || parsed.hostname.toLowerCase() !== 'chat.whatsapp.com') return undefined
+    const code = parsed.pathname.split('/').filter(Boolean)[0]?.trim()
+    return code && /^[A-Za-z0-9_-]+$/.test(code) ? code : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export const groupCommands: BotCommand[] = [
   participantCommand('expulser', 'remove', 'Retire un membre du groupe.', ['retirer']),
   participantCommand('promouvoir', 'promote', 'Nomme un membre administrateur.'),
@@ -406,46 +417,67 @@ export const groupCommands: BotCommand[] = [
   },
   {
     name: 'lienmembres',
-    description: 'Envoie en privé un lien personnalisé au nombre de membres choisi dans le groupe actuel.',
-    usage: '<nombre> | <lien> | [message avec {lien} et {numero}]',
+    description: 'Envoie en privé le lien d’un groupe destination à un nombre choisi de membres d’un groupe source, depuis n’importe quelle conversation.',
+    usage: '<nombre> | <lien_groupe_source> | <lien_groupe_destination> | [message avec {lien} et {numero}]',
     category: 'Groupe',
-    groupOnly: true,
-    adminOnly: true,
     cooldownSeconds: 30,
     async execute(ctx) {
       const parts = ctx.argText.split('|').map((part) => part.trim())
       const requested = Number.parseInt(parts[0] ?? '', 10)
-      const rawLink = parts[1] ?? ''
-      const template = parts[2] || 'Bonjour, voici ton lien : {lien}'
-      if (!Number.isInteger(requested) || requested < 1 || requested > 100 || !rawLink) {
-        return void (await ctx.reply(`Utilisation : ${ctx.prefix}lienmembres 20 | https://exemple.com/offre/{numero} | Bonjour, voici ton lien : {lien}`))
+      const sourceLink = parts[1] ?? ''
+      const destinationLink = parts[2] ?? ''
+      const template = parts.slice(3).join(' | ').trim() || 'Bonjour, rejoins notre groupe ici : {lien}'
+      const sourceCode = groupInviteCode(sourceLink)
+      const destinationCode = groupInviteCode(destinationLink)
+      if (!Number.isInteger(requested) || requested < 1 || requested > 100 || !sourceCode || !destinationCode) {
+        return void (await ctx.reply(`Utilisation : ${ctx.prefix}lienmembres 20 | LIEN_GROUPE_SOURCE | LIEN_GROUPE_DESTINATION | Bonjour, rejoins-nous ici : {lien}`))
       }
-      let parsed: URL
+
+      let sourceInfo
       try {
-        parsed = new URL(rawLink.replaceAll('{numero}', '22600000000'))
+        sourceInfo = await ctx.sock.groupGetInviteInfo(sourceCode)
       } catch {
-        return void (await ctx.reply('Le lien indiqué est invalide. Utilise un lien http:// ou https://.'))
+        return void (await ctx.reply('Impossible de reconnaître le lien du groupe source. Vérifie que le lien d’invitation est toujours valide.'))
       }
-      if (!['http:', 'https:'].includes(parsed.protocol)) {
-        return void (await ctx.reply('Le lien doit commencer par http:// ou https://.'))
+      let destinationInfo
+      try {
+        destinationInfo = await ctx.sock.groupGetInviteInfo(destinationCode)
+      } catch {
+        return void (await ctx.reply('Impossible de reconnaître le lien du groupe destination. Vérifie que le lien d’invitation est toujours valide.'))
+      }
+      if (sourceInfo.id === destinationInfo.id) return void (await ctx.reply('Le groupe source et le groupe destination doivent être différents.'))
+
+      let source
+      try {
+        source = await ctx.sock.groupMetadata(sourceInfo.id)
+      } catch {
+        return void (await ctx.reply('Bestla doit déjà être membre du groupe source pour pouvoir lire ses membres.'))
+      }
+
+      let destinationMembers: string[] = []
+      try {
+        const destination = await ctx.sock.groupMetadata(destinationInfo.id)
+        destinationMembers = destination.participants.map((participant) => participant.id)
+      } catch {
+        // Bestla n’a pas besoin d’être membre du groupe destination pour simplement envoyer son lien.
       }
 
       const self = ctx.sock.user?.id
-      const participants = (ctx.groupMetadata?.participants ?? [])
+      const participants = source.participants
         .map((participant) => {
           const details = participant as typeof participant & { phoneNumber?: string | null }
           return details.phoneNumber || participant.id
         })
-        .filter((jid) => !sameUser(jid, self))
+        .filter((jid) => !sameUser(jid, self) && !destinationMembers.some((existing) => sameUser(existing, jid)))
         .slice(0, requested)
-      if (!participants.length) return void (await ctx.reply('Aucun membre disponible pour cet envoi.'))
+      if (!participants.length) return void (await ctx.reply('Aucun membre disponible dans le groupe source pour cet envoi.'))
 
+      const cleanDestinationLink = `https://chat.whatsapp.com/${destinationCode}`
       let sent = 0
       let failed = 0
       for (const jid of participants) {
         const number = jid.split('@')[0]?.split(':')[0] ?? jid
-        const link = rawLink.replaceAll('{numero}', number)
-        const text = template.replaceAll('{lien}', link).replaceAll('{numero}', number).slice(0, 4_000)
+        const text = template.replaceAll('{lien}', cleanDestinationLink).replaceAll('{numero}', number).slice(0, 4_000)
         try {
           await ctx.sock.sendMessage(jid, { text })
           sent += 1
@@ -459,28 +491,47 @@ export const groupCommands: BotCommand[] = [
   },
   {
     name: 'copiermembres',
-    description: 'Ajoute au groupe actuel un nombre choisi de membres provenant d’un autre groupe Bestla accessible.',
-    usage: '<jid_groupe_source> <nombre>',
+    description: 'Ajoute dans un groupe destination un nombre choisi de membres d’un groupe source, à partir des deux liens et depuis n’importe quelle conversation.',
+    usage: '<nombre> | <lien_groupe_source> | <lien_groupe_destination>',
     category: 'Groupe',
-    groupOnly: true,
-    adminOnly: true,
-    botAdminRequired: true,
     cooldownSeconds: 30,
     async execute(ctx) {
-      const sourceGroup = ctx.args[0]?.trim() ?? ''
-      const requested = Number.parseInt(ctx.args[1] ?? '', 10)
-      if (!/^[\w.-]+@g\.us$/i.test(sourceGroup) || !Number.isInteger(requested) || requested < 1 || requested > 100) {
-        return void (await ctx.reply(`Utilisation : ${ctx.prefix}copiermembres 1203630xxxx@g.us 20\nDans le groupe source, utilise ${ctx.prefix}identifiantgroupe pour obtenir son identifiant.`))
+      const parts = ctx.argText.split('|').map((part) => part.trim())
+      const requested = Number.parseInt(parts[0] ?? '', 10)
+      const sourceCode = groupInviteCode(parts[1] ?? '')
+      const destinationCode = groupInviteCode(parts[2] ?? '')
+      if (!Number.isInteger(requested) || requested < 1 || requested > 100 || !sourceCode || !destinationCode) {
+        return void (await ctx.reply(`Utilisation : ${ctx.prefix}copiermembres 20 | LIEN_GROUPE_SOURCE | LIEN_GROUPE_DESTINATION`))
       }
-      if (sourceGroup === ctx.chatId) return void (await ctx.reply('Le groupe source doit être différent du groupe actuel.'))
+
+      let sourceInfo
+      try {
+        sourceInfo = await ctx.sock.groupGetInviteInfo(sourceCode)
+      } catch {
+        return void (await ctx.reply('Impossible de reconnaître le lien du groupe source. Vérifie que le lien d’invitation est toujours valide.'))
+      }
+      let destinationInfo
+      try {
+        destinationInfo = await ctx.sock.groupGetInviteInfo(destinationCode)
+      } catch {
+        return void (await ctx.reply('Impossible de reconnaître le lien du groupe destination. Vérifie que le lien d’invitation est toujours valide.'))
+      }
+      if (sourceInfo.id === destinationInfo.id) return void (await ctx.reply('Le groupe source et le groupe destination doivent être différents.'))
 
       let source
       try {
-        source = await ctx.sock.groupMetadata(sourceGroup)
+        source = await ctx.sock.groupMetadata(sourceInfo.id)
       } catch {
-        return void (await ctx.reply('Impossible de lire le groupe source avec cette session Bestla.'))
+        return void (await ctx.reply('Bestla doit déjà être membre du groupe source pour pouvoir lire ses membres.'))
       }
-      const current = ctx.groupMetadata?.participants.map((participant) => participant.id) ?? []
+      let destination
+      try {
+        destination = await ctx.sock.groupMetadata(destinationInfo.id)
+      } catch {
+        return void (await ctx.reply('Bestla doit déjà être membre du groupe destination pour pouvoir y ajouter des membres.'))
+      }
+
+      const current = destination.participants.map((participant) => participant.id)
       const self = ctx.sock.user?.id
       const candidates = source.participants
         .map((participant) => {
@@ -496,7 +547,7 @@ export const groupCommands: BotCommand[] = [
       for (let index = 0; index < candidates.length; index += 10) {
         const batch = candidates.slice(index, index + 10)
         try {
-          const results = await ctx.sock.groupParticipantsUpdate(ctx.chatId, batch, 'add')
+          const results = await ctx.sock.groupParticipantsUpdate(destinationInfo.id, batch, 'add')
           for (const result of results) {
             const status = Number(result.status)
             if (status >= 200 && status < 300) added += 1
@@ -507,8 +558,9 @@ export const groupCommands: BotCommand[] = [
         }
         await new Promise((resolve) => setTimeout(resolve, 500))
       }
-      await ctx.reply(`Ajout terminé : *${added}* membre(s) ajouté(s)${refused ? `, *${refused}* non ajouté(s) (confidentialité, invitation ou refus WhatsApp)` : ''}.`)
+      await ctx.reply(`Ajout terminé : *${added}* membre(s) ajouté(s)${refused ? `, *${refused}* non ajouté(s) (droits du groupe, confidentialité, invitation ou refus WhatsApp)` : ''}.`)
     },
   },
+
 
 ]

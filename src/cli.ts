@@ -1512,11 +1512,15 @@ async function sessionsPanel(reader: Interface): Promise<void> {
       await safely(reader, async () => {
         const current = (await getSessionStates()).sessions
         if (!current.length) throw new Error('Aucune session à retirer.')
+        print('')
+        print(bold('Choisis le numéro WhatsApp à retirer :'))
         current.forEach((session, index) => print(`${cyan(`[${index + 1}]`)} ${session.name} • ${maskPhone(session.phone)}`))
-        const selected = Number.parseInt((await reader.question('Choisis le numéro de la session à retirer : ')).trim(), 10)
+        print(`${cyan('[0]')} Annuler`)
+        const selected = Number.parseInt((await reader.question('Numéro : ')).trim(), 10)
+        if (selected === 0) return
         const name = current[selected - 1]?.name
         if (!name) throw new Error('Choix invalide.')
-        if (await askConfirmation(reader, `Retirer définitivement ${name}`, 'RETIRER')) await removeSession([name, 'confirmer'])
+        await removeSession([name, 'confirmer'])
       })
       continue
     }
