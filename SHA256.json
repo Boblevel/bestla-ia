@@ -27,7 +27,7 @@
   "scripts/generate_manual.py": "e808b47d4df4cee9fa49306c2557004c3e3bbcb90f1f8d3fa2c9381b19f15836",
   "scripts/generate_pm2_cheatsheet.py": "c116460407c33f0d4a22eaf518bdac9ced6d8a31c858eec6a77ec11ad1022d0b",
   "scripts/platform.sh": "5ded241476eaab78ce73bc6bee1de6006d3636f89f5dcab298c32ef09d960fdf",
-  "src/cli.ts": "1f37b030d4ea213f93563178c31eb767d9f647dd173ebd9bc26b062a8e6485e8",
+  "src/cli.ts": "cd57eb15ae7e62039d9d119155d65196a4828faa196c69409b944d0bf6948ac2",
   "src/config.ts": "a1ab34a3cab5eb30c9be3c0da890fc567cd07c20bab805ca20836431c3aaf59e",
   "src/core/ai.ts": "e8bfabd04e9c1ddc4b3084d44ee11070d64514516bcfe0e78532f9e14c80bd9d",
   "src/core/api.ts": "77bed00d203ef3c5105a3e5d3235b30b3a458f9d02e28fa7249b3abab52f1f21",
@@ -61,7 +61,7 @@
   "src/plugins/games.ts": "5dd1334574c24c161f26e38ca49b013d40204a279533ab2513746d023645d12a",
   "src/plugins/general.ts": "0ead36dba88ed7cdf97017c091954bdeddfde283509636575e27171972e48259",
   "src/plugins/generative-media.ts": "7d0c66a9df33aa0244b5630a9d98f0141c53917e1c79e3c8cf4e5cc39f621934",
-  "src/plugins/group.ts": "b88a5f27fa2b884d9fb253e529b3cbe4197040ce3fdd3fa83ce8e09e14f8d6a9",
+  "src/plugins/group.ts": "09deee11ebe8521382a5bd02a6db8b7a07f3b5ec08620695f9835215d8f132db",
   "src/plugins/index.ts": "3006dbdd0994efd4a4aeefe17a8461d89eea5f4b292401f5da36fe3f5370f906",
   "src/plugins/media.ts": "8e9bf8c2cadc6b5e9d54cea16c43aee043dda24de98ef68fa790e3de8181db80",
   "src/plugins/moderation.ts": "f3c7e125d915119638aee40af68ef56f3e947b20a1efe1b8ed81f24c255ec712",
@@ -104,6 +104,6 @@
   "test/tts.test.ts": "b3846dbbb40ab1a8e77ff524179f40c8d8e7265d73ce8972d0fb1b54b9ef6d5d",
   "test/v180-features.test.ts": "0f8a06a2c3cc86fa0639e27c55c05d8feebe9f53466bd0754e67ee572899ae21",
   "test/v181-features.test.ts": "a6b4569d91c794307a5097c2c15245d30e880809cfaccb999d114e93209a4314",
-  "test/v182-features.test.ts": "133a728b89ae39f74e45f3c4dde71a147de7a97d87c8b558262e148146937666",
+  "test/v182-features.test.ts": "173ce5185e5421d3f3fc160c129fb2f92175522b63cf80a1aab4e6820fddc161",
   "tsconfig.json": "7ff18c088950b4d24629c98abb6d478114709acda7b7abd637ab4aa044e3d343"
 }
