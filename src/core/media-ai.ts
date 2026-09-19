@@ -579,7 +579,7 @@ export class MediaAiService {
           const name = (stringValue(item?.parameter_name) ?? stringValue(item?.name) ?? '').toLowerCase()
           return name.includes('prompt') || name == 'text'
         })
-        if (hasPrompt) return { apiName, schema: endpoint }
+        if (hasPrompt && endpoint) return { apiName, schema: endpoint }
       }
     }
     return { apiName: desiredKey }
