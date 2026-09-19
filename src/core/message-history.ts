@@ -169,9 +169,13 @@ export function protocolMutation(message: WAMessage): ProtocolMutation | undefin
   const content = unwrapMessage(message.message)
   const protocol = content?.protocolMessage
   if (!protocol?.key) return undefined
+  const remoteJid = protocol.key.remoteJid ?? message.key.remoteJid
   const key: MessageKey = {
-    ...protocol.key,
-    remoteJid: protocol.key.remoteJid ?? message.key.remoteJid,
+    ...(protocol.key.id != null ? { id: protocol.key.id } : {}),
+    ...(protocol.key.fromMe != null ? { fromMe: protocol.key.fromMe } : {}),
+    ...(protocol.key.participant != null ? { participant: protocol.key.participant } : {}),
+    ...(remoteJid != null ? { remoteJid } : {}),
+    ...(message.key.remoteJidAlt != null ? { remoteJidAlt: message.key.remoteJidAlt } : {}),
   }
   if (protocol.editedMessage) return { kind: 'modifie', key, editedMessage: protocol.editedMessage }
   const type = protocol.type as unknown
