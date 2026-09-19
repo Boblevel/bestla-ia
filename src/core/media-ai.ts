@@ -20,6 +20,18 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+function numberValue(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function booleanValue(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function providerMessage(payload: unknown): string | undefined {
   const root = record(payload)
   const nested = record(root?.error)
@@ -37,7 +49,10 @@ function providerMessage(payload: unknown): string | undefined {
 
 function mediaError(provider: string, status: number, payload: unknown): MediaAiError {
   const message = providerMessage(payload)
-  const label = provider === 'cloudflare' ? 'Cloudflare' : 'Gemini'
+  const label = provider === 'cloudflare' ? 'Cloudflare' : provider === 'huggingface' ? 'Hugging Face' : 'Gemini'
+  if (provider === 'huggingface' && status === 429) {
+    return new MediaAiError('Hugging Face a temporairement bloqué la génération vidéo (quota gratuit atteint ou file saturée). Réessaie plus tard ou configure un HF_TOKEN gratuit.')
+  }
   return new MediaAiError(
     message
       ? `${label} a refusé la demande média (${status}) : ${message.slice(0, 240)}`
@@ -62,6 +77,53 @@ async function responseBuffer(response: Response, maxBytes = 100 * 1024 * 1024):
   if (buffer.length > maxBytes) throw new MediaAiError('Le fichier généré dépasse la taille maximale de sécurité (100 Mo).')
   return { buffer, mimetype: response.headers.get('content-type')?.split(';')[0] || 'application/octet-stream' }
 }
+
+function normalizedApiSegment(value: string): string {
+  return value.replace(/^\/+/, '')
+}
+
+function isVideoLikeFileHint(value: string): boolean {
+  return /\.(mp4|webm|mov|mkv)(?:[?#].*)?$/i.test(value)
+}
+
+function gradioFileUrl(baseUrl: string, filePath: string): string {
+  return `${baseUrl.replace(/\/+$/, '')}/gradio_api/file=${filePath}`
+}
+
+function extractHuggingFaceVideoFile(value: unknown, baseUrl: string): { url: string; mimetype: string } | undefined {
+  if (typeof value === 'string') {
+    const direct = value.trim()
+    if (!direct) return undefined
+    if (/^https?:\/\//i.test(direct) && isVideoLikeFileHint(direct)) return { url: direct, mimetype: 'video/mp4' }
+    if (direct.startsWith('/tmp/') && isVideoLikeFileHint(direct)) return { url: gradioFileUrl(baseUrl, direct), mimetype: 'video/mp4' }
+    return undefined
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = extractHuggingFaceVideoFile(item, baseUrl)
+      if (found) return found
+    }
+    return undefined
+  }
+  const item = record(value)
+  if (!item) return undefined
+  const url = stringValue(item.url)
+  const path = stringValue(item.path)
+  const mimetype = stringValue(item.mime_type) ?? stringValue(item.mimeType) ?? 'video/mp4'
+  if ((url && (mimetype.startsWith('video/') || isVideoLikeFileHint(url))) || (path && (mimetype.startsWith('video/') || isVideoLikeFileHint(path)))) {
+    return { url: url ?? gradioFileUrl(baseUrl, path!), mimetype }
+  }
+  for (const nestedKey of ['video', 'file', 'files', 'output', 'outputs', 'data', 'value', 'result']) {
+    const found = extractHuggingFaceVideoFile(item[nestedKey], baseUrl)
+    if (found) return found
+  }
+  for (const nested of Object.values(item)) {
+    const found = extractHuggingFaceVideoFile(nested, baseUrl)
+    if (found) return found
+  }
+  return undefined
+}
+
 
 function extractGeminiImage(payload: unknown): { data: string; mimetype: string } | undefined {
   const root = record(payload)
@@ -220,7 +282,7 @@ export class MediaAiService {
   constructor(private readonly config: AppConfig) {}
 
   isConfigured(): boolean {
-    return this.config.mediaAi.enabled && (this.imageConfigured() || this.videoFallbackConfigured() || this.imageEditConfigured())
+    return this.config.mediaAi.enabled && (this.imageConfigured() || this.videoConfigured() || this.videoFallbackConfigured() || this.imageEditConfigured())
   }
 
   status(): {
@@ -278,31 +340,17 @@ export class MediaAiService {
     // renvoyée telle quelle au lieu de présenter une image animée comme une vidéo IA.
     if (!image) {
       if (!this.videoConfigured()) {
-        throw new MediaAiError('La vraie génération vidéo IA nécessite une clé Gemini valide et le fournisseur vidéo activé.')
+        throw new MediaAiError('La vraie génération vidéo IA nécessite Hugging Face ZeroGPU activé. Ajoute si possible un HF_TOKEN gratuit pour profiter du quota journalier.')
       }
-      return this.veoTextVideoRequest(prompt)
+      return this.huggingFaceTextVideoRequest(prompt)
     }
 
-    // Le comportement image -> vidéo existant reste inchangé.
-    if (this.videoConfigured()) {
-      try {
-        return await this.geminiVideoRequest(prompt, { kind: 'image', ...image })
-      } catch {
-        // Secours local conservé uniquement pour l’animation d’image existante.
-      }
-    }
+    // L'animation d'image locale reste disponible sans dépendre du quota vidéo distant.
     return this.animateImageLocally(image)
   }
 
   async editVideo(prompt: string, video: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
     if (!this.config.mediaAi.enabled) throw new MediaAiError('La modification vidéo IA est désactivée.')
-    if (this.videoConfigured()) {
-      try {
-        return await this.geminiVideoRequest(prompt, { kind: 'video', ...video })
-      } catch {
-        // Secours local comme dans l’ancienne version.
-      }
-    }
     return this.animateImageLocally(await firstFrame(video))
   }
 
@@ -321,11 +369,14 @@ export class MediaAiService {
   }
 
   private videoConfigured(): boolean {
-    return this.config.mediaAi.enabled && this.config.mediaAi.videoProvider === 'gemini' && this.hasGeminiMediaKey()
+    return this.config.mediaAi.enabled
+      && this.config.mediaAi.videoProvider === 'huggingface'
+      && this.config.mediaAi.videoSpace.length >= 12
+      && this.config.mediaAi.videoApiName.length >= 2
   }
 
   private videoFallbackConfigured(): boolean {
-    return this.config.mediaAi.enabled && this.imageConfigured()
+    return this.config.mediaAi.enabled
   }
 
   private async animateImageLocally(image: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
@@ -454,58 +505,180 @@ export class MediaAiService {
     throw lastError ?? new MediaAiError('Tous les Workers Cloudflare image sont temporairement indisponibles.')
   }
 
-  private async veoTextVideoRequest(prompt: string): Promise<{ buffer: Buffer; mimetype: string }> {
-    if (!this.videoConfigured()) throw new MediaAiError('Gemini vidéo n’est pas configuré.')
+  private huggingFaceHeaders(json = true): Record<string, string> {
+    const headers: Record<string, string> = {}
+    if (json) headers['content-type'] = 'application/json'
+    if (this.config.mediaAi.videoAccessToken) headers.authorization = `Bearer ${this.config.mediaAi.videoAccessToken}`
+    return headers
+  }
+
+  private aspectRatioDimensions(): { width: number; height: number } {
+    return this.config.mediaAi.videoAspectRatio === '9:16'
+      ? { width: 576, height: 1024 }
+      : { width: 1024, height: 576 }
+  }
+
+  private buildHuggingFaceVideoPayload(schema: unknown, prompt: string): Record<string, unknown> {
+    const payload: Record<string, unknown> = { prompt }
+    const endpoint = record(schema)
+    const parameters = Array.isArray(endpoint?.parameters) ? endpoint.parameters : []
+    const { width, height } = this.aspectRatioDimensions()
+    for (const raw of parameters) {
+      const parameter = record(raw)
+      const name = stringValue(parameter?.parameter_name) ?? stringValue(parameter?.name) ?? stringValue(parameter?.label)
+      if (!name) continue
+      const key = name
+      const lower = key.toLowerCase()
+      if (key in payload) continue
+      if (/(^|_)prompt$/.test(lower) || lower === 'text' || lower === 'input_text') payload[key] = prompt
+      else if (lower.includes('negative')) payload[key] = ''
+      else if (lower === 'seed') payload[key] = 0
+      else if (lower.includes('randomize') && lower.includes('seed')) payload[key] = true
+      else if (lower === 'width') payload[key] = width
+      else if (lower === 'height') payload[key] = height
+      else if (lower.includes('aspect')) payload[key] = this.config.mediaAi.videoAspectRatio
+      else if (lower === 'num_frames' || lower === 'frames') payload[key] = 81
+      else if (lower.includes('inference') && lower.includes('step')) payload[key] = 20
+      else if (lower === 'duration' || lower === 'duration_seconds') payload[key] = 5
+      else if (lower === 'fps') payload[key] = 24
+      else if (lower.includes('guidance') || lower === 'cfg' || lower === 'cfg_scale') payload[key] = 3
+      else if (lower === 'model') payload[key] = this.config.mediaAi.videoModel
+      else if (lower === 'resolution') payload[key] = '720p'
+      else {
+        const defaultValue = parameter ? (parameter['default'] ?? record(parameter.props)?.value ?? record(parameter.component_props)?.value) : undefined
+        if (defaultValue !== undefined) payload[key] = defaultValue
+      }
+    }
+    return payload
+  }
+
+  private async huggingFaceSpaceInfo(): Promise<unknown> {
+    const response = await fetch(`${this.config.mediaAi.videoSpace}/gradio_api/info`, {
+      signal: AbortSignal.timeout(45_000),
+      headers: this.huggingFaceHeaders(false),
+    })
+    const payload = await responseJson(response)
+    if (!response.ok) throw mediaError('huggingface', response.status, payload)
+    return payload
+  }
+
+  private resolveHuggingFaceEndpoint(info: unknown): { apiName: string; schema?: JsonRecord } {
+    const root = record(info)
+    const named = record(root?.named_endpoints)
+    const desired = this.config.mediaAi.videoApiName
+    const desiredKey = desired.startsWith('/') ? desired : `/${desired}`
+    if (named) {
+      const exact = record(named[desiredKey]) ?? record(named[desiredKey.slice(1)])
+      if (exact) return { apiName: desiredKey, schema: exact }
+      for (const [key, raw] of Object.entries(named)) {
+        const apiName = key.startsWith('/') ? key : `/${key}`
+        const endpoint = record(raw)
+        const parameters = Array.isArray(endpoint?.parameters) ? endpoint.parameters : []
+        const hasPrompt = parameters.some((parameter) => {
+          const item = record(parameter)
+          const name = (stringValue(item?.parameter_name) ?? stringValue(item?.name) ?? '').toLowerCase()
+          return name.includes('prompt') || name == 'text'
+        })
+        if (hasPrompt) return { apiName, schema: endpoint }
+      }
+    }
+    return { apiName: desiredKey }
+  }
+
+  private async downloadHuggingFace(url: string, maxBytes = 100 * 1024 * 1024): Promise<{ buffer: Buffer; mimetype: string }> {
+    const response = await fetch(url, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(120_000),
+      headers: this.huggingFaceHeaders(false),
+    })
+    if (!response.ok) {
+      const payload = await responseJson(response)
+      throw mediaError('huggingface', response.status, payload)
+    }
+    return responseBuffer(response, maxBytes)
+  }
+
+  private async parseHuggingFacePoll(eventUrl: string, deadline: number): Promise<{ url: string; mimetype: string }> {
+    while (Date.now() < deadline) {
+      const remaining = Math.max(1_000, deadline - Date.now())
+      const response = await fetch(eventUrl, {
+        signal: AbortSignal.timeout(Math.min(45_000, remaining)),
+        headers: {
+          ...this.huggingFaceHeaders(false),
+          accept: 'text/event-stream, application/json',
+        },
+      })
+      const text = await response.text()
+      if (!response.ok) {
+        let payload: unknown = {}
+        try {
+          payload = JSON.parse(text)
+        } catch {}
+        throw mediaError('huggingface', response.status, payload)
+      }
+
+      const events = text.split(/\r?\n/).filter((line) => line.startsWith('data: ')).map((line) => line.slice(6).trim()).filter(Boolean)
+      if (events.length === 0) {
+        try {
+          const payload = JSON.parse(text)
+          const file = extractHuggingFaceVideoFile(payload, this.config.mediaAi.videoSpace)
+          if (file) return file
+        } catch {}
+        await sleep(4_000)
+        continue
+      }
+
+      for (const raw of events) {
+        let payload: unknown
+        try {
+          payload = JSON.parse(raw)
+        } catch {
+          continue
+        }
+        const root = record(payload)
+        const errorMessage = stringValue(root?.error) ?? providerMessage(payload)
+        if (errorMessage) throw new MediaAiError(`Hugging Face a échoué : ${errorMessage.slice(0, 240)}`)
+        const event = stringValue(root?.event)?.toLowerCase()
+        if (event === 'complete' || event === 'success' || stringValue(root?.msg)?.toLowerCase() === 'process_completed') {
+          const file = extractHuggingFaceVideoFile(root?.output ?? root?.data ?? payload, this.config.mediaAi.videoSpace)
+          if (file) return file
+        }
+      }
+
+      await sleep(4_000)
+    }
+
+    throw new MediaAiError(`La génération vidéo a dépassé ${this.config.mediaAi.videoTimeoutSeconds} secondes.`)
+  }
+
+  private async huggingFaceTextVideoRequest(prompt: string): Promise<{ buffer: Buffer; mimetype: string }> {
+    if (!this.videoConfigured()) throw new MediaAiError('Hugging Face vidéo n’est pas configuré.')
     const text = prompt.trim().slice(0, 4_000)
     if (!text) throw new MediaAiError('Le prompt vidéo est vide.')
 
     const timeoutMs = this.config.mediaAi.videoTimeoutSeconds * 1_000
     const deadline = Date.now() + timeoutMs
-    const model = this.config.mediaAi.videoModel
-    const response = await fetch(`${this.geminiBaseUrl}/models/${encodeURIComponent(model)}:predictLongRunning`, {
+    const info = await this.huggingFaceSpaceInfo()
+    const endpoint = this.resolveHuggingFaceEndpoint(info)
+    const apiSegment = normalizedApiSegment(endpoint.apiName)
+    const requestBody = this.buildHuggingFaceVideoPayload(endpoint.schema, text)
+    const response = await fetch(`${this.config.mediaAi.videoSpace}/gradio_api/call/v2/${apiSegment}`, {
       method: 'POST',
       signal: AbortSignal.timeout(Math.min(timeoutMs, 120_000)),
-      headers: { 'x-goog-api-key': this.config.mediaAi.apiKey, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        instances: [{ prompt: text }],
-        parameters: {
-          aspectRatio: this.config.mediaAi.videoAspectRatio,
-          resolution: '720p',
-        },
-      }),
+      headers: this.huggingFaceHeaders(true),
+      body: JSON.stringify(requestBody),
     })
-    let payload = await responseJson(response)
-    if (!response.ok) throw mediaError('gemini', response.status, payload)
-
-    const operationName = stringValue(record(payload)?.name)
-    if (!operationName) throw new MediaAiError('Gemini n’a pas renvoyé d’identifiant de génération vidéo.')
-
-    while (Date.now() < deadline) {
-      const operation = record(payload)
-      const operationError = record(operation?.error)
-      if (operationError) {
-        throw new MediaAiError(providerMessage(payload) ?? 'La génération vidéo Gemini a échoué.')
-      }
-
-      if (operation?.done === true) {
-        const output = extractVeoVideo(payload)
-        if (!output) throw new MediaAiError('Gemini a terminé la génération sans renvoyer de vidéo exploitable.')
-        if (output.data) return { buffer: Buffer.from(output.data, 'base64'), mimetype: output.mimetype || 'video/mp4' }
-        if (!output.uri) throw new MediaAiError('Gemini n’a pas renvoyé de vidéo téléchargeable.')
-        return downloadGemini(output.uri, this.config.mediaAi.apiKey)
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 10_000))
-      const remaining = Math.max(1_000, deadline - Date.now())
-      const statusResponse = await fetch(`${this.geminiBaseUrl}/${operationName}`, {
-        signal: AbortSignal.timeout(Math.min(45_000, remaining)),
-        headers: { 'x-goog-api-key': this.config.mediaAi.apiKey },
-      })
-      payload = await responseJson(statusResponse)
-      if (!statusResponse.ok) throw mediaError('gemini', statusResponse.status, payload)
+    const payload = await responseJson(response)
+    if (!response.ok) throw mediaError('huggingface', response.status, payload)
+    const root = record(payload)
+    const eventId = stringValue(root?.event_id) ?? stringValue(root?.eventId)
+    if (!eventId) {
+      const file = extractHuggingFaceVideoFile(payload, this.config.mediaAi.videoSpace)
+      if (!file) throw new MediaAiError('Hugging Face n’a pas renvoyé d’identifiant de génération vidéo.')
+      return this.downloadHuggingFace(file.url)
     }
-
-    throw new MediaAiError(`La génération vidéo a dépassé ${this.config.mediaAi.videoTimeoutSeconds} secondes.`)
+    const file = await this.parseHuggingFacePoll(`${this.config.mediaAi.videoSpace}/gradio_api/call/${apiSegment}/${eventId}`, deadline)
+    return this.downloadHuggingFace(file.url)
   }
 
   private async geminiVideoRequest(

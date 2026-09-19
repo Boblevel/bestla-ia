@@ -50,15 +50,19 @@ const schema = z.object({
   MEDIA_AI_PUBLIC: booleanFromEnv.default(false),
   MEDIA_AI_PROVIDER: z.string().default('mixed'),
   MEDIA_AI_API_KEY: z.string().default(''),
+  HF_TOKEN: z.string().default(''),
+  MEDIA_AI_HF_TOKEN: z.string().default(''),
   MEDIA_AI_IMAGE_PROVIDER: z.enum(['cloudflare', 'gemini']).default('cloudflare'),
-  MEDIA_AI_VIDEO_PROVIDER: z.enum(['gemini']).default('gemini'),
+  MEDIA_AI_VIDEO_PROVIDER: z.enum(['huggingface']).default('huggingface'),
   MEDIA_AI_CLOUDFLARE_ACCOUNT_ID: z.string().default(''),
   MEDIA_AI_CLOUDFLARE_API_TOKEN: z.string().default(''),
   MEDIA_AI_IMAGE_MODEL: z.string().default('@cf/black-forest-labs/flux-1-schnell'),
   MEDIA_AI_IMAGE_EDIT_MODEL: z.string().default('gemini-3.1-flash-image'),
   MEDIA_AI_IMAGE_ASPECT_RATIO: z.string().default('1:1'),
   MEDIA_AI_IMAGE_SIZE: z.enum(['512px', '1K', '2K', '4K']).default('1K'),
-  MEDIA_AI_VIDEO_MODEL: z.string().default('veo-3.1-generate-preview'),
+  MEDIA_AI_VIDEO_MODEL: z.string().default('Lightricks/LTX-Video'),
+  MEDIA_AI_VIDEO_SPACE: z.string().default('https://lightricks-ltx-video-distilled.hf.space'),
+  MEDIA_AI_VIDEO_API_NAME: z.string().default('/predict'),
   MEDIA_AI_VIDEO_ASPECT_RATIO: z.enum(['9:16', '16:9']).default('9:16'),
   MEDIA_AI_VIDEO_TIMEOUT_SECONDS: z.coerce.number().int().min(60).max(1_800).default(900),
 }).superRefine((value, ctx) => {
@@ -113,6 +117,7 @@ function parseSessionAuthModes(value: string, sessionNames: string[]): Map<strin
 }
 
 const runtimeGeminiKey = env.AI_API_KEY.trim() || env.MEDIA_AI_API_KEY.trim()
+const runtimeHfToken = env.MEDIA_AI_HF_TOKEN.trim() || env.HF_TOKEN.trim()
 
 const LEGACY_GEMINI_TEXT_MODELS = new Set([
   'gemini-2.0-flash',
@@ -126,14 +131,20 @@ function normalizeGeminiTextModel(value: string): string {
   return model
 }
 
-const LEGACY_GEMINI_VIDEO_MODELS = new Set([
-  'gemini-omni-flash-preview',
-])
-
-function normalizeGeminiVideoModel(value: string): string {
+function normalizeHuggingFaceVideoModel(value: string): string {
   const model = value.trim()
-  if (!model || LEGACY_GEMINI_VIDEO_MODELS.has(model)) return 'veo-3.1-generate-preview'
-  return model
+  return model || 'Lightricks/LTX-Video'
+}
+
+function normalizeHuggingFaceSpaceUrl(value: string): string {
+  const url = value.trim().replace(/\/+$/, '')
+  return url || 'https://lightricks-ltx-video-distilled.hf.space'
+}
+
+function normalizeHuggingFaceApiName(value: string): string {
+  const apiName = value.trim()
+  if (!apiName) return '/predict'
+  return apiName.startsWith('/') ? apiName : `/${apiName}`
 }
 
 export interface AppConfig {
@@ -173,14 +184,17 @@ export interface AppConfig {
     publicAccess: boolean
     apiKey: string
     imageProvider: 'cloudflare' | 'gemini'
-    videoProvider: 'gemini'
+    videoProvider: 'huggingface'
     imageAccountId: string
     imageApiToken: string
+    videoAccessToken: string
     imageModel: string
     imageEditModel: string
     imageAspectRatio: string
     imageSize: '512px' | '1K' | '2K' | '4K'
     videoModel: string
+    videoSpace: string
+    videoApiName: string
     videoAspectRatio: '9:16' | '16:9'
     videoTimeoutSeconds: number
   }
@@ -231,11 +245,14 @@ export const config: AppConfig = {
     videoProvider: env.MEDIA_AI_VIDEO_PROVIDER,
     imageAccountId: env.MEDIA_AI_CLOUDFLARE_ACCOUNT_ID.trim(),
     imageApiToken: env.MEDIA_AI_CLOUDFLARE_API_TOKEN.trim(),
+    videoAccessToken: runtimeHfToken,
     imageModel: env.MEDIA_AI_IMAGE_MODEL.trim() || '@cf/black-forest-labs/flux-1-schnell',
     imageEditModel: env.MEDIA_AI_IMAGE_EDIT_MODEL.trim() || 'gemini-3.1-flash-image',
     imageAspectRatio: env.MEDIA_AI_IMAGE_ASPECT_RATIO.trim(),
     imageSize: env.MEDIA_AI_IMAGE_SIZE,
-    videoModel: normalizeGeminiVideoModel(env.MEDIA_AI_VIDEO_MODEL),
+    videoModel: normalizeHuggingFaceVideoModel(env.MEDIA_AI_VIDEO_MODEL),
+    videoSpace: normalizeHuggingFaceSpaceUrl(env.MEDIA_AI_VIDEO_SPACE),
+    videoApiName: normalizeHuggingFaceApiName(env.MEDIA_AI_VIDEO_API_NAME),
     videoAspectRatio: env.MEDIA_AI_VIDEO_ASPECT_RATIO,
     videoTimeoutSeconds: env.MEDIA_AI_VIDEO_TIMEOUT_SECONDS,
   },
