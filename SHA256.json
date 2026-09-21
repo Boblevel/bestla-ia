@@ -27,7 +27,7 @@
   "scripts/generate_manual.py": "e808b47d4df4cee9fa49306c2557004c3e3bbcb90f1f8d3fa2c9381b19f15836",
   "scripts/generate_pm2_cheatsheet.py": "c116460407c33f0d4a22eaf518bdac9ced6d8a31c858eec6a77ec11ad1022d0b",
   "scripts/platform.sh": "5ded241476eaab78ce73bc6bee1de6006d3636f89f5dcab298c32ef09d960fdf",
-  "src/cli.ts": "cd57eb15ae7e62039d9d119155d65196a4828faa196c69409b944d0bf6948ac2",
+  "src/cli.ts": "7eb42df11c21bba306206f3c449b2b22356ae3bc12effadb9537f4f07919d4e1",
   "src/config.ts": "bb49b731aaa32281f89c377edee51481fc5616800dbb7482e551027e178ba15a",
   "src/core/ai.ts": "e8bfabd04e9c1ddc4b3084d44ee11070d64514516bcfe0e78532f9e14c80bd9d",
   "src/core/api.ts": "77bed00d203ef3c5105a3e5d3235b30b3a458f9d02e28fa7249b3abab52f1f21",
@@ -106,5 +106,6 @@
   "test/v181-features.test.ts": "a6b4569d91c794307a5097c2c15245d30e880809cfaccb999d114e93209a4314",
   "test/v182-features.test.ts": "f6a12cb5f4bd1b3955faf66d6e70c0d466399205b1839d17c81e2928a700329e",
   "tsconfig.json": "7ff18c088950b4d24629c98abb6d478114709acda7b7abd637ab4aa044e3d343",
-  "env.example.media-archive": "517f754e2d292ad13ed757a15c405844f8ea0a09068a6960ba1e57b44ac19262"
+  "env.example.media-archive": "517f754e2d292ad13ed757a15c405844f8ea0a09068a6960ba1e57b44ac19262",
+  "test/hf-token-panel.test.ts": "fbc976e5759a1bfad52b5053f12b9fd0646b5994bb7e9a33e05899ef93383027"
 }
