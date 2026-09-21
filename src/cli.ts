@@ -816,18 +816,21 @@ async function showConfiguration(): Promise<void> {
   print(`${cyan('Toujours en ligne')}: ${displayToggle(values.ALWAYS_ONLINE)}`)
   print(`${cyan('Rejeter appels')}   : ${displayToggle(values.REJECT_CALLS)}`)
   const geminiKey = (values.AI_API_KEY || values.MEDIA_AI_API_KEY || '').trim()
+  const hfToken = (values.MEDIA_AI_HF_TOKEN || values.HF_TOKEN || '').trim()
   const imageProvider = (values.MEDIA_AI_IMAGE_PROVIDER || 'cloudflare').trim()
-  const videoProvider = (values.MEDIA_AI_VIDEO_PROVIDER || 'gemini').trim()
+  const videoProvider = (values.MEDIA_AI_VIDEO_PROVIDER || 'huggingface').trim()
   print(`${cyan('Assistant IA')}     : ${green('Gemini')} ${geminiKey ? green('(clé configurée)') : gray('(clé manquante)')}`)
   print(`${cyan('Modèle texte')}      : ${values.AI_MODEL || 'gemini-3.6-flash'}`)
   print(`${cyan('Clé Gemini')}        : ${maskSecret(geminiKey)}`)
+  print(`${cyan('Token HuggingFace')} : ${maskSecret(hfToken)}`)
   print(`${cyan('Médias IA')}        : ${displayToggle(values.MEDIA_AI_ENABLED ?? 'true')}`)
   print(`${cyan('Images IA')}        : ${imageProvider} ${green('(pool central 2 comptes)')}`)
-  print(`${cyan('Vidéos IA')}        : ${videoProvider}${geminiKey ? green(' + secours local 5 s') : green(' (secours local 5 s)')}`)
+  print(`${cyan('Vidéos IA')}        : ${videoProvider} ${hfToken ? green('(token configuré)') : yellow('(token manquant)')}`)
   print(`${cyan('Médias IA publics')}: ${displayToggle(values.MEDIA_AI_PUBLIC)}`)
   print('')
   print(gray('Exemples : ') + 'bestla configuration prefixe !')
   print(gray('            ') + 'bestla configuration apigemini statut')
+  print(gray('            ') + 'bestla configuration hftoken statut')
   print(gray('            ') + 'bestla configuration mediaia activer')
 
 }
@@ -889,7 +892,6 @@ async function updateConfiguration(args: string[]): Promise<void> {
       print(`${cyan('Clé')}         : ${maskSecret(currentKey)}`)
       print(`${cyan('Texte')}       : ${values.AI_MODEL || 'gemini-3.6-flash'}`)
       print(`${cyan('Retouche')}    : ${values.MEDIA_AI_IMAGE_EDIT_MODEL || 'gemini-3.1-flash-image'}`)
-      print(`${cyan('Vidéo')}       : ${values.MEDIA_AI_VIDEO_MODEL || 'gemini-omni-flash-preview'}`)
       return
     }
     if (normalized === 'tester' || normalized === 'test') {
@@ -911,10 +913,9 @@ async function updateConfiguration(args: string[]): Promise<void> {
         MEDIA_AI_PROVIDER: 'mixed',
         MEDIA_AI_API_KEY: '',
         MEDIA_AI_IMAGE_EDIT_MODEL: 'gemini-3.1-flash-image',
-        MEDIA_AI_VIDEO_MODEL: 'gemini-omni-flash-preview',
       })
       await removeEnvironmentKeys(['POLLINATIONS_API_KEY', 'POLLINATIONS_TEXT_MODEL'])
-      return restartAfterConfiguration('Clé Gemini retirée. Le texte, la retouche image et la vidéo IA resteront désactivés jusqu’à l’ajout d’une nouvelle clé.')
+      return restartAfterConfiguration('Clé Gemini retirée. Le texte et la retouche image Gemini sont désactivés. La vidéo Hugging Face reste indépendante.')
     }
     if (value.length < 20) throw new Error('La clé Gemini semble trop courte. Copie la clé complète depuis Google AI Studio.')
     await testGeminiApiKey(value, 'gemini-3.6-flash')
@@ -927,11 +928,52 @@ async function updateConfiguration(args: string[]): Promise<void> {
       MEDIA_AI_PROVIDER: 'mixed',
       MEDIA_AI_API_KEY: value,
       MEDIA_AI_IMAGE_EDIT_MODEL: 'gemini-3.1-flash-image',
-      MEDIA_AI_VIDEO_MODEL: 'gemini-omni-flash-preview',
-      MEDIA_AI_VIDEO_PROVIDER: 'gemini',
     })
     await removeEnvironmentKeys(['POLLINATIONS_API_KEY', 'POLLINATIONS_TEXT_MODEL'])
-    return restartAfterConfiguration('Clé Gemini vérifiée et enregistrée. Bestla utilise maintenant Gemini pour le texte et la vidéo IA.')
+    return restartAfterConfiguration('Clé Gemini vérifiée et enregistrée. Bestla utilise Gemini pour le texte et la retouche image. La vidéo reste sur Hugging Face.')
+  }
+  if (action === 'hftoken' || action === 'huggingface' || action === 'tokenhf') {
+    const value = (args[1] ?? '').trim()
+    if (!value) {
+      throw new Error('Utilisation : bestla configuration hftoken statut|tester|vider|TON_TOKEN_HF')
+    }
+    const normalized = value.toLowerCase()
+    if (normalized === 'statut' || normalized === 'status') {
+      const values = (await readEnvironment()).values
+      const currentToken = (values.MEDIA_AI_HF_TOKEN || values.HF_TOKEN || '').trim()
+      heading('TOKEN HUGGING FACE', 'État de la génération vidéo ZeroGPU')
+      print(`${cyan('Fournisseur')} : ${green('Hugging Face')}`)
+      print(`${cyan('Token')}       : ${maskSecret(currentToken)}`)
+      print(`${cyan('Modèle')}      : ${values.MEDIA_AI_VIDEO_MODEL || 'multimodalart/minimax-h3'}`)
+      print(`${cyan('Espace')}      : ${values.MEDIA_AI_VIDEO_SPACE || 'https://multimodalart-minimax-h3.hf.space'}`)
+      return
+    }
+    if (normalized === 'tester' || normalized === 'test') {
+      const values = (await readEnvironment()).values
+      const currentToken = (values.MEDIA_AI_HF_TOKEN || values.HF_TOKEN || '').trim()
+      if (!currentToken) throw new Error('Aucun token Hugging Face configuré. Ajoute-le d’abord dans Configuration > Token Hugging Face.')
+      const account = await testHuggingFaceToken(currentToken)
+      print(green(`✓ Token Hugging Face valide${account ? ` pour ${account}` : ''}.`))
+      return
+    }
+    if (normalized === 'vider' || normalized === 'supprimer' || normalized === 'retirer') {
+      await writeEnvironmentValues({ HF_TOKEN: '', MEDIA_AI_HF_TOKEN: '' })
+      return restartAfterConfiguration('Token Hugging Face retiré. Les vidéos ZeroGPU utiliseront de nouveau le quota anonyme lorsqu’il est disponible.')
+    }
+    if (!value.startsWith('hf_') || value.length < 20) {
+      throw new Error('Le token Hugging Face semble invalide. Il doit commencer par hf_ et être copié en entier.')
+    }
+    const account = await testHuggingFaceToken(value)
+    await writeEnvironmentValues({
+      HF_TOKEN: value,
+      MEDIA_AI_HF_TOKEN: value,
+      MEDIA_AI_PROVIDER: 'mixed',
+      MEDIA_AI_VIDEO_PROVIDER: 'huggingface',
+      MEDIA_AI_VIDEO_MODEL: 'multimodalart/minimax-h3',
+      MEDIA_AI_VIDEO_SPACE: 'https://multimodalart-minimax-h3.hf.space',
+      MEDIA_AI_VIDEO_API_NAME: '/generate',
+    })
+    return restartAfterConfiguration(`Token Hugging Face vérifié et enregistré${account ? ` pour ${account}` : ''}. La vidéo ZeroGPU utilisera maintenant ce compte.`)
   }
   if (action === 'imagecloudflare' || action === 'cloudflareimage') {
     const first = (args[1] ?? '').trim()
@@ -983,7 +1025,7 @@ async function updateConfiguration(args: string[]): Promise<void> {
   if (action === 'marquerlu') return setToggleConfiguration('MARK_READ', args[1], 'marquerlu')
   if (action === 'toujoursenligne') return setToggleConfiguration('ALWAYS_ONLINE', args[1], 'toujoursenligne')
   if (action === 'rejeterappels') return setToggleConfiguration('REJECT_CALLS', args[1], 'rejeterappels')
-  throw new Error('Configuration : prefixe, mode, nom, signature, fuseau, commandes, reactionscommandes, apigemini, imagecloudflare, mediaia, mediaiapublic, marquerlu, toujoursenligne, rejeterappels.')
+  throw new Error('Configuration : prefixe, mode, nom, signature, fuseau, commandes, reactionscommandes, apigemini, hftoken, imagecloudflare, mediaia, mediaiapublic, marquerlu, toujoursenligne, rejeterappels.')
 }
 
 async function processStatus(): Promise<void> {
@@ -1605,6 +1647,27 @@ async function ownersPanel(reader: Interface): Promise<void> {
 }
 
 const GEMINI_API_KEYS_URL = 'https://aistudio.google.com/app/apikey'
+const HUGGING_FACE_TOKENS_URL = 'https://huggingface.co/settings/tokens'
+
+async function testHuggingFaceToken(token: string): Promise<string> {
+  const value = token.trim()
+  if (!value.startsWith('hf_') || value.length < 20) throw new Error('Token Hugging Face absent ou incomplet.')
+  let response: Response
+  try {
+    response = await fetch('https://huggingface.co/api/whoami-v2', {
+      signal: AbortSignal.timeout(20_000),
+      headers: { authorization: `Bearer ${value}` },
+    })
+  } catch {
+    throw new Error('Impossible de joindre Hugging Face. Vérifie la connexion Internet du VPS puis réessaie.')
+  }
+  const payload = (await response.json().catch(() => ({}))) as { name?: string; error?: string }
+  if (!response.ok) {
+    const message = payload.error?.trim()
+    throw new Error(message ? `Hugging Face a refusé le token (${response.status}) : ${message.slice(0, 220)}` : `Hugging Face a refusé le token (${response.status}).`)
+  }
+  return payload.name?.trim() ?? ''
+}
 
 async function testGeminiApiKey(apiKey: string, model = 'gemini-3.6-flash'): Promise<void> {
   const key = apiKey.trim()
@@ -1667,7 +1730,7 @@ async function geminiKeyPanel(reader: Interface): Promise<void> {
   const currentTextModel = (initialValues.AI_MODEL || '').trim()
   await writeEnvironmentValues({
     AI_PROVIDER: 'gemini',
-    MEDIA_AI_PROVIDER: 'gemini',
+    MEDIA_AI_PROVIDER: 'mixed',
     ...(legacyTextModels.has(currentTextModel) || !currentTextModel ? { AI_MODEL: 'gemini-3.6-flash' } : {}),
   })
   await removeEnvironmentKeys(['POLLINATIONS_API_KEY', 'POLLINATIONS_TEXT_MODEL'])
@@ -1717,6 +1780,68 @@ async function geminiKeyPanel(reader: Interface): Promise<void> {
   }
 }
 
+async function showHuggingFaceInstructions(): Promise<void> {
+  heading('OBTENIR UN TOKEN HUGGING FACE', 'Guide simple • compte gratuit Hugging Face')
+  print(`${cyan('1.')} Ouvre ce lien officiel dans ton navigateur :`)
+  print(blue(HUGGING_FACE_TOKENS_URL))
+  print('')
+  print(`${cyan('2.')} Connecte-toi ou crée gratuitement un compte Hugging Face.`)
+  print(`${cyan('3.')} Appuie sur « New token » / « Create new token ».`)
+  print(`${cyan('4.')} Donne un nom, par exemple BESTLA-VPS, puis choisis le rôle « Read ».`)
+  print(`${cyan('5.')} Crée le token puis copie la valeur complète qui commence par « hf_ ».`)
+  print(`${cyan('6.')} Sur le VPS, ouvre Bestla > Configuration > Token Hugging Face > Ajouter / remplacer.`)
+  print(`${cyan('7.')} Colle le token. Bestla le teste avant de l’enregistrer dans .env.`)
+  print('')
+  print(yellow('Ne partage jamais ton token dans WhatsApp, GitHub, une capture d’écran ou un message public.'))
+  print(gray('Un token Read suffit pour authentifier Bestla auprès des services Hugging Face utilisés ici.'))
+}
+
+async function huggingFaceTokenPanel(reader: Interface): Promise<void> {
+  while (true) {
+    const values = (await readEnvironment()).values
+    const currentToken = (values.MEDIA_AI_HF_TOKEN || values.HF_TOKEN || '').trim()
+    renderSubmenu('TOKEN HUGGING FACE', 'Token privé de ce VPS • utilisé pour le quota vidéo ZeroGPU')
+    print(`${cyan('État')}   : ${currentToken ? green('configuré') : yellow('non configuré')}`)
+    print(`${cyan('Token')}  : ${maskSecret(currentToken)}`)
+    print(`${cyan('Modèle')} : ${values.MEDIA_AI_VIDEO_MODEL || 'multimodalart/minimax-h3'}`)
+    panelRule()
+    print(`${cyan('[1]')} ${bold('🔑 AJOUTER / REMPLACER LE TOKEN')}`)
+    print(`${cyan('[2]')} ${bold('🧪 TESTER LE TOKEN ACTUEL')}`)
+    print(`${cyan('[3]')} ${bold('🗑 RETIRER LE TOKEN')}`)
+    print(`${cyan('[4]')} ${bold('📖 COMMENT OBTENIR LE TOKEN')}`)
+    print(`${cyan('[5]')} ${bold('📋 VOIR LE STATUT HUGGING FACE')}`)
+    returnOption()
+    const choice = normalizeMenuChoice(await reader.question(`\n${bold('Choix')} : `))
+    if (choice === '0') return
+    if (choice === '1') await safely(reader, async () => {
+      print(gray('Le token reste uniquement dans le fichier .env de ce VPS.'))
+      const token = (await reader.question('Colle le token Hugging Face complet (hf_...) : ')).trim()
+      if (!token) throw new Error('Aucun token saisi.')
+      await updateConfiguration(['hftoken', token])
+    })
+    else if (choice === '2') await safely(reader, async () => {
+      await updateConfiguration(['hftoken', 'tester'])
+    })
+    else if (choice === '3') await safely(reader, async () => {
+      if (!currentToken) {
+        print(yellow('Aucun token Hugging Face n’est configuré.'))
+        return
+      }
+      if (await askConfirmation(reader, 'Retirer le token Hugging Face')) {
+        await updateConfiguration(['hftoken', 'vider'])
+      }
+    })
+    else if (choice === '4') await safely(reader, showHuggingFaceInstructions)
+    else if (choice === '5') await safely(reader, async () => {
+      await updateConfiguration(['hftoken', 'statut'])
+    })
+    else {
+      print(yellow('Choix invalide.'))
+      await pause(reader)
+    }
+  }
+}
+
 async function configurationPanel(reader: Interface): Promise<void> {
   while (true) {
     renderSubmenu('CONFIGURATION', 'Réglages essentiels • les clés API restent protégées dans .env')
@@ -1737,6 +1862,7 @@ async function configurationPanel(reader: Interface): Promise<void> {
     print(`${cyan('[11]')} ${bold('🔑 GÉRER LA CLÉ GEMINI')}`)
     print(`${cyan('[12]')} ${bold('🎨 ACTIVER / DÉSACTIVER LES MÉDIAS IA')}`)
     print(`${cyan('[13]')} ${bold('🌍 ACCÈS PUBLIC AUX MÉDIAS IA')}`)
+    print(`${cyan('[14]')} ${bold('🤗 GÉRER LE TOKEN HUGGING FACE')}`)
     returnOption()
     const choice = normalizeMenuChoice(await reader.question(`\n${bold('Choix')} : `))
     if (choice === '0') return
@@ -1783,6 +1909,7 @@ async function configurationPanel(reader: Interface): Promise<void> {
       const selected = (await reader.question('Choisis [1] accès public  [2] propriétaire uniquement : ')).trim()
       await updateConfiguration(['mediaiapublic', selected === '1' ? 'activer' : 'desactiver'])
     })
+    else if (choice === '14') await huggingFaceTokenPanel(reader)
     else {
       print(yellow('Choix invalide.'))
       await pause(reader)
