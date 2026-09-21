@@ -263,6 +263,21 @@ async function runFfmpeg(args: string[]): Promise<void> {
   })
 }
 
+async function runFfmpegCapture(args: string[]): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8') })
+    child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8') })
+    child.once('error', reject)
+    child.once('close', (code) => {
+      if (code === 0) resolve(stdout)
+      else reject(new MediaAiError(stderr.trim().slice(-500) || 'FFmpeg n’a pas pu analyser la vidéo générée.'))
+    })
+  })
+}
+
 async function firstFrame(video: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'bestla-video-'))
   const input = path.join(directory, video.mimetype.includes('webm') ? 'source.webm' : 'source.mp4')
@@ -366,7 +381,7 @@ export class MediaAiService {
       if (!this.videoConfigured()) {
         throw new MediaAiError('La vraie génération vidéo IA nécessite Hugging Face ZeroGPU activé. Ajoute si possible un HF_TOKEN gratuit pour profiter du quota journalier.')
       }
-      return this.huggingFaceTextVideoRequest(prompt)
+      return this.ensureVideoHasMotion(await this.huggingFaceTextVideoRequest(prompt), 'Hugging Face')
     }
 
     // L'animation d'image locale reste disponible sans dépendre du quota vidéo distant.
@@ -401,6 +416,36 @@ export class MediaAiService {
 
   private videoFallbackConfigured(): boolean {
     return this.config.mediaAi.enabled
+  }
+
+  private async ensureVideoHasMotion(
+    video: { buffer: Buffer; mimetype: string },
+    providerLabel: string,
+  ): Promise<{ buffer: Buffer; mimetype: string }> {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'bestla-motion-check-'))
+    const input = path.join(directory, video.mimetype.includes('webm') ? 'source.webm' : 'source.mp4')
+    try {
+      await writeFile(input, video.buffer)
+      const report = await runFfmpegCapture([
+        '-hide_banner', '-loglevel', 'error',
+        '-i', input,
+        '-vf', 'fps=3,scale=96:96:force_original_aspect_ratio=decrease,format=gray',
+        '-an', '-f', 'framemd5', '-',
+      ])
+      const hashes = new Set(
+        report
+          .split(/\r?\n/)
+          .filter((line) => line && !line.startsWith('#'))
+          .map((line) => line.trim().split(/\s+/).pop() ?? '')
+          .filter(Boolean),
+      )
+      if (hashes.size < 2) {
+        throw new MediaAiError(`${providerLabel} a renvoyé une vidéo statique sans vrai mouvement. Aucun faux MP4 n’a été envoyé.`)
+      }
+      return video
+    } finally {
+      await rm(directory, { recursive: true, force: true }).catch(() => undefined)
+    }
   }
 
   private async animateImageLocally(image: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
@@ -565,13 +610,18 @@ export class MediaAiService {
   }
 
   private async huggingFaceSpaceInfo(): Promise<unknown> {
-    const response = await fetch(`${this.config.mediaAi.videoSpace}/gradio_api/info`, {
-      signal: AbortSignal.timeout(45_000),
-      headers: this.huggingFaceHeaders(false),
-    })
-    const payload = await responseJson(response)
-    if (!response.ok) throw mediaError('huggingface', response.status, payload)
-    return payload
+    try {
+      const response = await fetch(`${this.config.mediaAi.videoSpace}/gradio_api/info`, {
+        signal: AbortSignal.timeout(120_000),
+        headers: this.huggingFaceHeaders(false),
+      })
+      const payload = await responseJson(response)
+      if (!response.ok) throw mediaError('huggingface', response.status, payload)
+      return payload
+    } catch (error) {
+      if (error instanceof MediaAiError) throw error
+      throw new MediaAiError('Connexion au Space Hugging Face impossible ou trop lente. Le Space ZeroGPU peut être en cours de démarrage ; réessaie dans quelques instants.')
+    }
   }
 
   private resolveHuggingFaceEndpoint(info: unknown): { apiName: string; schema?: JsonRecord } {
@@ -598,29 +648,44 @@ export class MediaAiService {
   }
 
   private async downloadHuggingFace(url: string, maxBytes = 100 * 1024 * 1024): Promise<{ buffer: Buffer; mimetype: string }> {
-    const response = await fetch(url, {
-      redirect: 'follow',
-      signal: AbortSignal.timeout(120_000),
-      headers: this.huggingFaceHeaders(false),
-    })
-    if (!response.ok) {
-      const payload = await responseJson(response)
-      throw mediaError('huggingface', response.status, payload)
+    try {
+      const response = await fetch(url, {
+        redirect: 'follow',
+        signal: AbortSignal.timeout(180_000),
+        headers: this.huggingFaceHeaders(false),
+      })
+      if (!response.ok) {
+        const payload = await responseJson(response)
+        throw mediaError('huggingface', response.status, payload)
+      }
+      return responseBuffer(response, maxBytes)
+    } catch (error) {
+      if (error instanceof MediaAiError) throw error
+      throw new MediaAiError('La vidéo Hugging Face a été générée mais son téléchargement a échoué. Réessaie dans quelques instants.')
     }
-    return responseBuffer(response, maxBytes)
   }
 
   private async parseHuggingFacePoll(eventUrl: string, deadline: number): Promise<{ url: string; mimetype: string }> {
     while (Date.now() < deadline) {
       const remaining = Math.max(1_000, deadline - Date.now())
-      const response = await fetch(eventUrl, {
-        signal: AbortSignal.timeout(Math.min(45_000, remaining)),
-        headers: {
-          ...this.huggingFaceHeaders(false),
-          accept: 'text/event-stream, application/json',
-        },
-      })
-      const text = await response.text()
+      let response: Response
+      let text: string
+      try {
+        response = await fetch(eventUrl, {
+          signal: AbortSignal.timeout(Math.min(remaining, 900_000)),
+          headers: {
+            ...this.huggingFaceHeaders(false),
+            accept: 'text/event-stream, application/json',
+          },
+        })
+        text = await response.text()
+      } catch {
+        if (Date.now() >= deadline) {
+          throw new MediaAiError(`La génération vidéo a dépassé ${this.config.mediaAi.videoTimeoutSeconds} secondes.`)
+        }
+        throw new MediaAiError('La connexion au flux vidéo Hugging Face a été interrompue avant la fin de la génération. Réessaie dans quelques instants.')
+      }
+
       if (!response.ok) {
         let payload: unknown = {}
         try {
@@ -650,8 +715,10 @@ export class MediaAiService {
           continue
         }
         const root = record(payload)
-        const errorMessage = stringValue(root?.error) ?? providerMessage(payload)
-        if (errorMessage) throw new MediaAiError(`Hugging Face a échoué : ${errorMessage.slice(0, 240)}`)
+        const errorMessage = typeof payload === 'string' ? payload.trim() : stringValue(root?.error) ?? providerMessage(payload)
+        if (item.event === 'error' || errorMessage) {
+          throw new MediaAiError(errorMessage ? `Hugging Face a échoué : ${errorMessage.slice(0, 240)}` : 'Hugging Face a signalé une erreur pendant la génération vidéo.')
+        }
         const event = item.event ?? stringValue(root?.event)?.toLowerCase() ?? stringValue(root?.msg)?.toLowerCase()
         const file = extractHuggingFaceVideoFile(root?.output ?? root?.data ?? payload, this.config.mediaAi.videoSpace)
         if (file && (!event || event === 'complete' || event === 'success' || event === 'process_completed' || event === 'generating')) {
@@ -672,18 +739,47 @@ export class MediaAiService {
 
     const timeoutMs = this.config.mediaAi.videoTimeoutSeconds * 1_000
     const deadline = Date.now() + timeoutMs
-    const info = await this.huggingFaceSpaceInfo()
-    const endpoint = this.resolveHuggingFaceEndpoint(info)
-    const apiSegment = normalizedApiSegment(endpoint.apiName)
-    const requestBody = { data: this.buildHuggingFaceVideoPayload(endpoint.schema, text) }
-    const response = await fetch(`${this.config.mediaAi.videoSpace}/gradio_api/call/${apiSegment}`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(Math.min(timeoutMs, 120_000)),
-      headers: this.huggingFaceHeaders(true),
-      body: JSON.stringify(requestBody),
-    })
-    const payload = await responseJson(response)
-    if (!response.ok) throw mediaError('huggingface', response.status, payload)
+    const apiSegment = normalizedApiSegment(this.config.mediaAi.videoApiName)
+    // MiniMax-H3 attend exactement : prompt, image, dernière image, canvas, durée, étapes, seed, upsample.
+    // On envoie le prompt utilisateur en première position, sans le remplacer ni le détourner.
+    const requestBody = { data: this.buildHuggingFaceVideoPayload(undefined, text) }
+    const routes = [
+      `${this.config.mediaAi.videoSpace}/call/${apiSegment}`,
+      `${this.config.mediaAi.videoSpace}/gradio_api/call/${apiSegment}`,
+    ]
+
+    let payload: unknown = {}
+    let eventBase = ''
+    let lastStatus = 0
+    for (const route of routes) {
+      let response: Response
+      try {
+        response = await fetch(route, {
+          method: 'POST',
+          signal: AbortSignal.timeout(Math.min(timeoutMs, 120_000)),
+          headers: this.huggingFaceHeaders(true),
+          body: JSON.stringify(requestBody),
+        })
+      } catch {
+        continue
+      }
+      payload = await responseJson(response)
+      if (response.ok) {
+        eventBase = route
+        lastStatus = 0
+        break
+      }
+      lastStatus = response.status
+      if (response.status !== 404 && response.status !== 405) {
+        throw mediaError('huggingface', response.status, payload)
+      }
+    }
+
+    if (!eventBase) {
+      if (lastStatus) throw mediaError('huggingface', lastStatus, payload)
+      throw new MediaAiError('Impossible de joindre l’API vidéo Hugging Face. Le Space ZeroGPU peut être en démarrage ou temporairement saturé.')
+    }
+
     const root = record(payload)
     const eventId = stringValue(root?.event_id) ?? stringValue(root?.eventId)
     if (!eventId) {
@@ -691,7 +787,7 @@ export class MediaAiService {
       if (!file) throw new MediaAiError('Hugging Face n’a pas renvoyé d’identifiant de génération vidéo.')
       return this.downloadHuggingFace(file.url)
     }
-    const file = await this.parseHuggingFacePoll(`${this.config.mediaAi.videoSpace}/gradio_api/call/${apiSegment}/${eventId}`, deadline)
+    const file = await this.parseHuggingFacePoll(`${eventBase}/${eventId}`, deadline)
     return this.downloadHuggingFace(file.url)
   }
 
