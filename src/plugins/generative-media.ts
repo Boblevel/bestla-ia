@@ -13,7 +13,7 @@ async function guard(ctx: CommandContext): Promise<MediaAiService | undefined> {
   }
   const service = new MediaAiService(ctx.config)
   if (!service.isConfigured()) {
-    await ctx.reply('La génération média IA n’est pas encore prête. Active MEDIA_AI_ENABLED=true, configure Hugging Face ZeroGPU pour la vidéo, et Cloudflare si tu veux générer les images gratuitement.')
+    await ctx.reply('La génération média IA n’est pas encore prête. Active MEDIA_AI_ENABLED=true, configure Hugging Face ZeroGPU pour la vidéo, et configure Cloudflare ou Gemini si tu veux générer les images.')
     return undefined
   }
   return service
@@ -191,7 +191,7 @@ export const generativeMediaCommands: BotCommand[] = [
     async execute(ctx) {
       const state = new MediaAiService(ctx.config).status()
       await ctx.reply(
-        `Média IA : *${state.enabled ? 'activé' : 'désactivé'}*\nMode : *${state.provider}*\nImage : ${state.imageProvider} • ${state.imageConfigured ? 'prête' : 'indisponible'} • ${state.imageAccounts} compte(s) de secours\nModèle image : ${state.imageModel}\nRetouche image : ${state.imageEditConfigured ? 'Gemini prête' : 'Gemini non configurée'} • ${state.imageEditModel}\nVidéo : ${state.videoConfigured ? 'Hugging Face prête' : 'Hugging Face non configurée'}${state.videoFallback ? ' + animation locale prête' : ''}\nModèle vidéo : ${state.videoModel}\nEspace vidéo : ${ctx.config.mediaAi.videoSpace}\nAccès public : *${ctx.config.mediaAi.publicAccess ? 'oui' : 'non'}*`,
+        `Média IA : *${state.enabled ? 'activé' : 'désactivé'}*\nMode : *${state.provider}*\nImage : ${state.imageProvider} • ${state.imageConfigured ? 'prête' : 'indisponible'} • ${state.imageAccounts} compte(s) de secours\nModèle image : ${state.imageModel}\nRetouche image : ${state.imageEditConfigured ? 'Gemini prête' : 'Gemini non configurée'} • ${state.imageEditModel}\nVidéo texte : ${state.videoConfigured ? 'Hugging Face prête' : 'Hugging Face non configurée'}\nAnimation image : ${state.videoFallback ? 'locale prête' : 'indisponible'}\nModèle vidéo : ${state.videoModel}\nAccès public : *${ctx.config.mediaAi.publicAccess ? 'oui' : 'non'}*`,
       )
     },
   },

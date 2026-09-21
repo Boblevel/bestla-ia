@@ -168,6 +168,21 @@ async function runFfmpeg(args: string[]): Promise<void> {
   })
 }
 
+async function runFfmpegCapture(args: string[]): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8') })
+    child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8') })
+    child.once('error', reject)
+    child.once('close', (code) => {
+      if (code === 0) resolve(stdout)
+      else reject(new MediaAiError(stderr.trim().slice(-500) || 'FFmpeg n’a pas pu analyser la vidéo générée.'))
+    })
+  })
+}
+
 async function firstFrame(video: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'bestla-video-'))
   const input = path.join(directory, video.mimetype.includes('webm') ? 'source.webm' : 'source.mp4')
@@ -271,7 +286,7 @@ export class MediaAiService {
       if (!this.videoConfigured()) {
         throw new MediaAiError('La vraie génération vidéo IA nécessite Hugging Face ZeroGPU activé. Ajoute si possible un HF_TOKEN gratuit pour profiter du quota journalier.')
       }
-      return this.huggingFaceTextVideoRequest(prompt)
+      return this.ensureVideoHasMotion(await this.huggingFaceTextVideoRequest(prompt), 'Hugging Face')
     }
 
     // L'animation d'image locale reste disponible sans dépendre du quota vidéo distant.
@@ -306,6 +321,36 @@ export class MediaAiService {
 
   private videoFallbackConfigured(): boolean {
     return this.config.mediaAi.enabled
+  }
+
+  private async ensureVideoHasMotion(
+    video: { buffer: Buffer; mimetype: string },
+    providerLabel: string,
+  ): Promise<{ buffer: Buffer; mimetype: string }> {
+    const directory = await mkdtemp(path.join(os.tmpdir(), 'bestla-motion-check-'))
+    const input = path.join(directory, video.mimetype.includes('webm') ? 'source.webm' : 'source.mp4')
+    try {
+      await writeFile(input, video.buffer)
+      const report = await runFfmpegCapture([
+        '-hide_banner', '-loglevel', 'error',
+        '-i', input,
+        '-vf', 'fps=3,scale=96:96:force_original_aspect_ratio=decrease,format=gray',
+        '-an', '-f', 'framemd5', '-',
+      ])
+      const hashes = new Set(
+        report
+          .split(/\r?\n/)
+          .filter((line) => line && !line.startsWith('#'))
+          .map((line) => line.trim().split(/\s+/).pop() ?? '')
+          .filter(Boolean),
+      )
+      if (hashes.size < 2) {
+        throw new MediaAiError(`${providerLabel} a renvoyé une vidéo statique sans vrai mouvement. Aucun faux MP4 n’a été envoyé.`)
+      }
+      return video
+    } finally {
+      await rm(directory, { recursive: true, force: true }).catch(() => undefined)
+    }
   }
 
   private async animateImageLocally(image: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
