@@ -590,7 +590,9 @@ export class MediaAiService {
   private buildHuggingFaceVideoPayload(schema: unknown, prompt: string): unknown[] {
     const endpoint = record(schema)
     const parameters = Array.isArray(endpoint?.parameters) ? endpoint.parameters : []
-    const fallback = [prompt, null, null, this.videoCanvas(), 5, 26, 42, false]
+    // Compte gratuit ZeroGPU : le conditioner réserve 45 s sur xlarge (= 90 crédits)
+    // puis le générateur à 14 étapes réserve ~102 s (= 204 crédits), soit ~294/300 crédits au total.
+    const fallback = [prompt, null, null, this.videoCanvas(), 5, 14, 42, false]
     if (parameters.length === 0) return fallback
     return parameters.map((raw, index) => {
       const parameter = record(raw)
