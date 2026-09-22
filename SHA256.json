@@ -36,7 +36,7 @@
   "src/core/cloudflare-pool.ts": "32e74bfb32442f3f0ca5c1474a658dc6f4edbd2634bf21eb37917d82c1664df8",
   "src/core/database.ts": "6f91e336c8edc06c6002646f92a3cc6f9f25f2519279b81e601dcd85a8cb74ea",
   "src/core/logger.ts": "44907170250459d03f3502de5f1e927dfd95c8bc4a0ef8ccd9b3c038a28ce305",
-  "src/core/media-ai.ts": "fe5af1804418aad544d18b2b207b234f842479ec1a70980dc06ecff1309ff435",
+  "src/core/media-ai.ts": "1c5664fceafd987f091a51ff58378010b594a39e67016389cd533fa5f5881880",
   "src/core/media-archive.ts": "825f0da0af0f5108f055cf0efe1469fcef4fd6f88ce969550362afa110908dc7",
   "src/core/message-history.ts": "1b4690b193525e7463e672d4e0227d34ad3302d200e00e0f2daa0aa8f7d35cc0",
   "src/core/moderation.ts": "75262ce96cfa75efc865e44d52a184976757431f1e62bc2f9ee622ff62779598",
@@ -104,7 +104,7 @@
   "test/tts.test.ts": "b3846dbbb40ab1a8e77ff524179f40c8d8e7265d73ce8972d0fb1b54b9ef6d5d",
   "test/v180-features.test.ts": "0f8a06a2c3cc86fa0639e27c55c05d8feebe9f53466bd0754e67ee572899ae21",
   "test/v181-features.test.ts": "a6b4569d91c794307a5097c2c15245d30e880809cfaccb999d114e93209a4314",
-  "test/v182-features.test.ts": "0defba05837421d44c15731f80dcc199f9252d4f7d096e4e8c5c241bf3cf9fb3",
+  "test/v182-features.test.ts": "c44da490ffb0957c3c7d0dea44ff15f0ae8caf834df3e245846b32f9999e11af",
   "tsconfig.json": "7ff18c088950b4d24629c98abb6d478114709acda7b7abd637ab4aa044e3d343",
   "env.example.media-archive": "517f754e2d292ad13ed757a15c405844f8ea0a09068a6960ba1e57b44ac19262",
   "test/hf-token-panel.test.ts": "fbc976e5759a1bfad52b5053f12b9fd0646b5994bb7e9a33e05899ef93383027"
