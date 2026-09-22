@@ -13,7 +13,7 @@ async function guard(ctx: CommandContext): Promise<MediaAiService | undefined> {
   }
   const service = new MediaAiService(ctx.config)
   if (!service.isConfigured()) {
-    await ctx.reply('La génération média IA n’est pas encore prête. Active MEDIA_AI_ENABLED=true, configure Hugging Face ZeroGPU pour la vidéo, et configure Cloudflare ou Gemini si tu veux générer les images.')
+    await ctx.reply('La génération média IA n’est pas encore prête. Active MEDIA_AI_ENABLED=true, configure Hugging Face ZeroGPU pour la vidéo, et Cloudflare si tu veux générer les images gratuitement.')
     return undefined
   }
   return service
@@ -117,6 +117,7 @@ export const generativeMediaCommands: BotCommand[] = [
       if (!service) return
       if (!ctx.argText.trim()) return void (await ctx.reply(`Utilisation : ${ctx.prefix}generervideo Plan cinématique vertical d’une boutique moderne`))
       try {
+        await ctx.reply('🎬 Génération vidéo en cours… Le mode ZeroGPU rapide est utilisé et peut prendre quelques minutes.')
         const generated = await service.generateVideo(ctx.argText)
         await ctx.send({
           video: generated.buffer,
@@ -191,7 +192,7 @@ export const generativeMediaCommands: BotCommand[] = [
     async execute(ctx) {
       const state = new MediaAiService(ctx.config).status()
       await ctx.reply(
-        `Média IA : *${state.enabled ? 'activé' : 'désactivé'}*\nMode : *${state.provider}*\nImage : ${state.imageProvider} • ${state.imageConfigured ? 'prête' : 'indisponible'} • ${state.imageAccounts} compte(s) de secours\nModèle image : ${state.imageModel}\nRetouche image : ${state.imageEditConfigured ? 'Gemini prête' : 'Gemini non configurée'} • ${state.imageEditModel}\nVidéo texte : ${state.videoConfigured ? 'Hugging Face prête' : 'Hugging Face non configurée'}\nAnimation image : ${state.videoFallback ? 'locale prête' : 'indisponible'}\nModèle vidéo : ${state.videoModel}\nAccès public : *${ctx.config.mediaAi.publicAccess ? 'oui' : 'non'}*`,
+        `Média IA : *${state.enabled ? 'activé' : 'désactivé'}*\nMode : *${state.provider}*\nImage : ${state.imageProvider} • ${state.imageConfigured ? 'prête' : 'indisponible'} • ${state.imageAccounts} compte(s) de secours\nModèle image : ${state.imageModel}\nRetouche image : ${state.imageEditConfigured ? 'Gemini prête' : 'Gemini non configurée'} • ${state.imageEditModel}\nVidéo : ${state.videoConfigured ? 'Hugging Face prête' : 'Hugging Face non configurée'}${state.videoFallback ? ' + animation locale prête' : ''}\nModèle vidéo : ${state.videoModel}\nEspace vidéo : ${ctx.config.mediaAi.videoSpace}\nAccès public : *${ctx.config.mediaAi.publicAccess ? 'oui' : 'non'}*`,
       )
     },
   },

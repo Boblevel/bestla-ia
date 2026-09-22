@@ -583,14 +583,14 @@ export class MediaAiService {
 
   private videoCanvas(): string {
     return this.config.mediaAi.videoAspectRatio === '9:16'
-      ? '768x1344 · 9:16 full'
-      : '1344x768 · 16:9 full'
+      ? '544x960 · 9:16 fast'
+      : '960x544 · 16:9 fast'
   }
 
   private buildHuggingFaceVideoPayload(schema: unknown, prompt: string): unknown[] {
     const endpoint = record(schema)
     const parameters = Array.isArray(endpoint?.parameters) ? endpoint.parameters : []
-    const fallback = [prompt, null, null, this.videoCanvas(), 5, 28, 42, true]
+    const fallback = [prompt, null, null, this.videoCanvas(), 5, 28, 42, false]
     if (parameters.length === 0) return fallback
     return parameters.map((raw, index) => {
       const parameter = record(raw)
@@ -603,7 +603,7 @@ export class MediaAiService {
       if (lower === 'duration' || lower === 'duration_seconds') return 5
       if (lower === 'steps' || (lower.includes('inference') && lower.includes('step'))) return 28
       if (lower === 'seed') return 42
-      if (lower === 'upsample' || lower.includes('rewrite_prompt')) return true
+      if (lower === 'upsample' || lower.includes('rewrite_prompt')) return false
       const defaultValue = parameter ? (parameter['default'] ?? record(parameter.props)?.value ?? record(parameter.component_props)?.value) : undefined
       return defaultValue !== undefined ? defaultValue : fallback[index] ?? null
     })
@@ -681,7 +681,7 @@ export class MediaAiService {
         text = await response.text()
       } catch {
         if (Date.now() >= deadline) {
-          throw new MediaAiError(`La génération vidéo a dépassé ${this.config.mediaAi.videoTimeoutSeconds} secondes.`)
+          throw new MediaAiError(`La génération vidéo ZeroGPU a dépassé ${Math.ceil(Math.min(this.config.mediaAi.videoTimeoutSeconds, 360))} secondes. Réessaie plus tard : la file gratuite peut être saturée.`)
         }
         throw new MediaAiError('La connexion au flux vidéo Hugging Face a été interrompue avant la fin de la génération. Réessaie dans quelques instants.')
       }
@@ -729,7 +729,7 @@ export class MediaAiService {
       await sleep(4_000)
     }
 
-    throw new MediaAiError(`La génération vidéo a dépassé ${this.config.mediaAi.videoTimeoutSeconds} secondes.`)
+    throw new MediaAiError(`La génération vidéo ZeroGPU a dépassé ${Math.ceil(Math.min(this.config.mediaAi.videoTimeoutSeconds, 360))} secondes. Réessaie plus tard : la file gratuite peut être saturée.`)
   }
 
   private async huggingFaceTextVideoRequest(prompt: string): Promise<{ buffer: Buffer; mimetype: string }> {
@@ -737,7 +737,7 @@ export class MediaAiService {
     const text = prompt.trim().slice(0, 4_000)
     if (!text) throw new MediaAiError('Le prompt vidéo est vide.')
 
-    const timeoutMs = this.config.mediaAi.videoTimeoutSeconds * 1_000
+    const timeoutMs = Math.min(this.config.mediaAi.videoTimeoutSeconds * 1_000, 360_000)
     const deadline = Date.now() + timeoutMs
     const apiSegment = normalizedApiSegment(this.config.mediaAi.videoApiName)
     // MiniMax-H3 attend exactement : prompt, image, dernière image, canvas, durée, étapes, seed, upsample.
