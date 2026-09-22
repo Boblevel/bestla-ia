@@ -590,7 +590,7 @@ export class MediaAiService {
   private buildHuggingFaceVideoPayload(schema: unknown, prompt: string): unknown[] {
     const endpoint = record(schema)
     const parameters = Array.isArray(endpoint?.parameters) ? endpoint.parameters : []
-    const fallback = [prompt, null, null, this.videoCanvas(), 5, 28, 42, false]
+    const fallback = [prompt, null, null, this.videoCanvas(), 5, 26, 42, false]
     if (parameters.length === 0) return fallback
     return parameters.map((raw, index) => {
       const parameter = record(raw)
@@ -601,7 +601,7 @@ export class MediaAiService {
       if (lower === 'last_image_path' || lower === 'last_image' || lower.includes('last')) return null
       if (lower === 'canvas') return this.videoCanvas()
       if (lower === 'duration' || lower === 'duration_seconds') return 5
-      if (lower === 'steps' || (lower.includes('inference') && lower.includes('step'))) return 28
+      if (lower === 'steps' || (lower.includes('inference') && lower.includes('step'))) return 26
       if (lower === 'seed') return 42
       if (lower === 'upsample' || lower.includes('rewrite_prompt')) return false
       const defaultValue = parameter ? (parameter['default'] ?? record(parameter.props)?.value ?? record(parameter.component_props)?.value) : undefined

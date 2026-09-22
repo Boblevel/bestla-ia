@@ -91,7 +91,7 @@ test('generervideo utilise MiniMax H3 via Gradio officiel sans faux fallback sta
   assert.match(media, /framemd5/)
   assert.match(media, /vidéo statique sans vrai mouvement/)
   assert.match(media, /parseSseEventBlocks/)
-  assert.match(media, /const fallback = \[prompt, null, null, this\.videoCanvas\(\), 5, 28, 42, false\]/)
+  assert.match(media, /const fallback = \[prompt, null, null, this\.videoCanvas\(\), 5, 26, 42, false\]/)
   assert.match(media, /'544x960 · 9:16 fast'/)
   assert.match(media, /'960x544 · 16:9 fast'/)
   assert.match(media, /return false/)
