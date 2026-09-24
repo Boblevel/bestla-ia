@@ -581,65 +581,62 @@ export class MediaAiService {
     return headers
   }
 
-  private videoCanvas(): string {
+  private videoDimensions(): { height: number; width: number } {
     return this.config.mediaAi.videoAspectRatio === '9:16'
-      ? '480x832'
-      : '832x480'
+      ? { height: 704, width: 512 }
+      : { height: 512, width: 704 }
   }
 
   private buildHuggingFaceVideoPayload(schema: unknown, prompt: string): unknown[] {
     const endpoint = record(schema)
     const parameters = Array.isArray(endpoint?.parameters) ? endpoint.parameters : []
-    // API Wan actuellement publique : image optionnelle, prompt, ratio, durée.
-    // Certaines instances ZeroGPU peuvent encore exposer un ancien schéma Gradio
-    // avec davantage d'entrées. On s'adapte aux paramètres réellement annoncés
-    // par /gradio_api/info au lieu de supposer un nombre fixe de valeurs.
-    const fallback = [null, prompt, this.videoCanvas(), 5]
+    const { height, width } = this.videoDimensions()
+    const negativePrompt = 'worst quality, inconsistent motion, blurry, jittery, distorted, watermark, text, subtitles'
+
+    // Ordre officiel actuel de LTX Video Fast /text_to_video :
+    // prompt, negative_prompt, image, video, height, width, mode, duration,
+    // frames_to_use, seed, randomize_seed, guidance_scale, improve_texture.
+    const fallback: unknown[] = [
+      prompt,
+      negativePrompt,
+      null,
+      null,
+      height,
+      width,
+      'text-to-video',
+      5,
+      9,
+      42,
+      true,
+      3,
+      false,
+    ]
     if (parameters.length === 0) return fallback
 
-    const portrait = this.config.mediaAi.videoAspectRatio === '9:16'
-    const height = portrait ? 832 : 480
-    const width = portrait ? 480 : 832
-    const negativePrompt = 'nsfw, nudity, explicit content, watermark, text, signature, subtitles, low quality, blurry, deformed, disfigured, static frame'
-
-    let sliderIndex = 0
     return parameters.map((raw, index) => {
       const parameter = record(raw)
-      const name = stringValue(parameter?.parameter_name) ?? stringValue(parameter?.name) ?? stringValue(parameter?.label)
-      const lower = (name ?? '').toLowerCase()
-      const component = (stringValue(parameter?.component) ?? '').toLowerCase()
-      const label = (stringValue(parameter?.label) ?? '').toLowerCase()
-      const pythonTypeRecord = record(parameter?.python_type)
-      const pythonType = (
-        stringValue(pythonTypeRecord?.type)
-        ?? stringValue(parameter?.python_type)
+      const name = (
+        stringValue(parameter?.parameter_name)
+        ?? stringValue(parameter?.name)
+        ?? stringValue(parameter?.label)
         ?? ''
       ).toLowerCase()
-      const typeRecord = record(parameter?.type)
-      const typeTitle = (stringValue(typeRecord?.title) ?? '').toLowerCase()
-      const componentHint = `${component} ${label} ${pythonType} ${typeTitle}`
-      const sliderOrdinal = component === 'slider' ? sliderIndex++ : -1
+      const label = (stringValue(parameter?.label) ?? '').toLowerCase()
+      const hint = `${name} ${label}`
 
-      // Le composant Gradio est prioritaire : certaines versions ZeroGPU ont
-      // déjà publié des parameter_name décalés après un redéploiement.
-      if (component.includes('image') || componentHint.includes('imagedata')) return null
-      if (lower === 'negative_prompt' || lower.includes('negative') || label.includes('negative')) return negativePrompt
-      if (component === 'textbox' || /(^|_)prompt$/.test(lower) || lower === 'text' || lower === 'input_text' || label === 'prompt') return prompt
-      if (component === 'dropdown' || lower === 'aspect_ratio' || lower === 'aspect' || lower.includes('ratio') || label.includes('aspect')) return this.videoCanvas()
-      if (lower === 'height') return height
-      if (lower === 'width') return width
-      if (lower === 'duration' || lower === 'duration_seconds' || lower.includes('second') || label.includes('duration')) return 5
-      if (lower === 'guidance_scale' || lower.includes('guidance')) return 0
-      if (lower === 'steps' || (lower.includes('inference') && lower.includes('step'))) return 4
-      if (lower === 'seed') return 42
-      if (lower === 'randomize_seed' || lower.includes('randomize')) return true
-
-      // Certaines versions du Space exposent seulement le type du composant et
-      // renvoient « Parameter has no default value » comme faux défaut.
-      // Dans ce schéma historique : slider 1 = durée, slider 2 = étapes.
-      if (component === 'slider') return sliderOrdinal === 0 ? 5 : sliderOrdinal === 1 ? 4 : 0
-      if (component === 'number') return 42
-      if (component === 'checkbox') return true
+      if (hint.includes('negative')) return negativePrompt
+      if (hint.includes('image')) return null
+      if (hint.includes('video') && !hint.includes('duration')) return null
+      if (hint.includes('prompt')) return prompt
+      if (hint.includes('height')) return height
+      if (hint.includes('width')) return width
+      if (hint.includes('mode') || hint.includes('task')) return 'text-to-video'
+      if (hint.includes('duration')) return 5
+      if (hint.includes('frames_to_use') || hint.includes('frames to use')) return 9
+      if (hint.includes('randomize')) return true
+      if (hint.includes('seed')) return 42
+      if (hint.includes('guidance')) return 3
+      if (hint.includes('improve_texture') || hint.includes('improve texture')) return false
 
       const parameterDefault = parameter?.parameter_default
       const defaultValue = parameterDefault !== undefined
@@ -785,8 +782,8 @@ export class MediaAiService {
     const spaceInfo = await this.huggingFaceSpaceInfo()
     const endpoint = this.resolveHuggingFaceEndpoint(spaceInfo)
     const apiSegment = normalizedApiSegment(endpoint.apiName)
-    // Le Space Wan peut changer son schéma Gradio lors d'un redéploiement.
-    // On construit la requête depuis le schéma réellement exposé au moment de l'appel.
+    // LTX expose un endpoint texte→vidéo dédié. Le schéma live sert uniquement
+    // à rester compatible avec les noms de paramètres Gradio sans changer leur sens.
     const requestBody = { data: this.buildHuggingFaceVideoPayload(endpoint.schema, text) }
     const routes = [
       `${this.config.mediaAi.videoSpace}/call/${apiSegment}`,

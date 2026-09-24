@@ -60,9 +60,9 @@ const schema = z.object({
   MEDIA_AI_IMAGE_EDIT_MODEL: z.string().default('gemini-3.1-flash-image'),
   MEDIA_AI_IMAGE_ASPECT_RATIO: z.string().default('1:1'),
   MEDIA_AI_IMAGE_SIZE: z.enum(['512px', '1K', '2K', '4K']).default('1K'),
-  MEDIA_AI_VIDEO_MODEL: z.string().default('FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers'),
-  MEDIA_AI_VIDEO_SPACE: z.string().default('https://alexcheng0072-wan27-free-video-generator.hf.space'),
-  MEDIA_AI_VIDEO_API_NAME: z.string().default('/generate_video'),
+  MEDIA_AI_VIDEO_MODEL: z.string().default('Lightricks/LTX-Video'),
+  MEDIA_AI_VIDEO_SPACE: z.string().default('https://lightricks-ltx-video-distilled.hf.space'),
+  MEDIA_AI_VIDEO_API_NAME: z.string().default('/text_to_video'),
   MEDIA_AI_VIDEO_ASPECT_RATIO: z.enum(['9:16', '16:9']).default('9:16'),
   MEDIA_AI_VIDEO_TIMEOUT_SECONDS: z.coerce.number().int().min(60).max(1_800).default(900),
 }).superRefine((value, ctx) => {
@@ -131,29 +131,35 @@ function normalizeGeminiTextModel(value: string): string {
   return model
 }
 
-const LEGACY_HUGGING_FACE_VIDEO_MODEL = 'multimodalart/minimax-h3'
-const LEGACY_HUGGING_FACE_VIDEO_SPACE = 'https://multimodalart-minimax-h3.hf.space'
-const LEGACY_HUGGING_FACE_VIDEO_API_NAME = '/generate'
-const WAN_VIDEO_MODEL = 'FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers'
-const WAN_VIDEO_SPACE = 'https://alexcheng0072-wan27-free-video-generator.hf.space'
-const WAN_VIDEO_API_NAME = '/generate_video'
+const LEGACY_HUGGING_FACE_VIDEO_MODELS = new Set([
+  'multimodalart/minimax-h3',
+  'FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers',
+])
+const LEGACY_HUGGING_FACE_VIDEO_SPACES = new Set([
+  'https://multimodalart-minimax-h3.hf.space',
+  'https://alexcheng0072-wan27-free-video-generator.hf.space',
+])
+const LEGACY_HUGGING_FACE_VIDEO_API_NAMES = new Set(['/generate', '/generate_video'])
+const LTX_VIDEO_MODEL = 'Lightricks/LTX-Video'
+const LTX_VIDEO_SPACE = 'https://lightricks-ltx-video-distilled.hf.space'
+const LTX_VIDEO_API_NAME = '/text_to_video'
 
 function normalizeHuggingFaceVideoModel(value: string): string {
   const model = value.trim()
-  if (!model || model === LEGACY_HUGGING_FACE_VIDEO_MODEL) return WAN_VIDEO_MODEL
+  if (!model || LEGACY_HUGGING_FACE_VIDEO_MODELS.has(model)) return LTX_VIDEO_MODEL
   return model
 }
 
 function normalizeHuggingFaceSpaceUrl(value: string): string {
   const url = value.trim().replace(/\/+$/, '')
-  if (!url || url === LEGACY_HUGGING_FACE_VIDEO_SPACE) return WAN_VIDEO_SPACE
+  if (!url || LEGACY_HUGGING_FACE_VIDEO_SPACES.has(url)) return LTX_VIDEO_SPACE
   return url
 }
 
 function normalizeHuggingFaceApiName(value: string): string {
   const rawApiName = value.trim()
   const apiName = rawApiName ? (rawApiName.startsWith('/') ? rawApiName : `/${rawApiName}`) : ''
-  if (!apiName || apiName === LEGACY_HUGGING_FACE_VIDEO_API_NAME) return WAN_VIDEO_API_NAME
+  if (!apiName || LEGACY_HUGGING_FACE_VIDEO_API_NAMES.has(apiName)) return LTX_VIDEO_API_NAME
   return apiName
 }
 
