@@ -1,8 +1,8 @@
 {
-  "src/core/media-ai.ts": "4b268bf6c90880ff53027567f6023783a5bbfceb0bc0af2e1b164ad6cf2adbe1",
-  "src/config.ts": "211f01e55043c3f0935f5c6b88610a096f8a33c166c3b414b4c1f01bb0f1c3eb",
+  "src/core/media-ai.ts": "bc55fcd3bf4f9c833bada2f824a5f2c20d5b3f37afd0a0e65b675fc0da04e27a",
+  "src/config.ts": "f43c97d705ecc6bce9fecb662b6023e50507b18ad10e8cfdf9492988bb2c8182",
   "src/plugins/generative-media.ts": "a771ea72cdb87f46d7ff8bcc3dec5396abe7e5a2f3f6aa6db0ad89c2119320b0",
-  "test/v182-features.test.ts": "c7986223e7a05b8c4abdf7d8c0ef426cdbebf19ee9483268e6ee6c734fecab7f",
-  ".env.example": "5706c28aefb9dc936155e34854a7c9b4584e76e19bf8be920847a66889aeea08",
-  "env.example.media-archive": "706cccadb85e926ec49721527d88b19ec40fee0b1784b4f8c981593f55ac4d9b"
+  "test/v182-features.test.ts": "d48b6e290dd4763a964a41043b23e97897b286e90504fdc5d23726a5d8773ec0",
+  ".env.example": "4b46ab47a181b4413b87072dbd411d64b292255f13784b012bcb86db54a7d31c",
+  "env.example.media-archive": "964529743462ae52693ea664a11402ef2fbefcf737fc45fa4d4a2e2c9c5ffb8c"
 }
