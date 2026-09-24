@@ -374,18 +374,11 @@ export class MediaAiService {
   async generateVideo(prompt: string, image?: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
     if (!this.config.mediaAi.enabled) throw new MediaAiError('La génération média IA est désactivée.')
 
-    // Pour le texte -> vidéo, on exige désormais une vraie génération vidéo IA.
-    // Aucun secours image + zoom FFmpeg n’est utilisé : une erreur fournisseur est
-    // renvoyée telle quelle au lieu de présenter une image animée comme une vidéo IA.
-    if (!image) {
-      if (!this.videoConfigured()) {
-        throw new MediaAiError('La vraie génération vidéo IA nécessite Hugging Face ZeroGPU activé. Ajoute si possible un HF_TOKEN gratuit pour profiter du quota journalier.')
-      }
-      return this.ensureVideoHasMotion(await this.huggingFaceTextVideoRequest(prompt), 'Hugging Face')
-    }
-
-    // L'animation d'image locale reste disponible sans dépendre du quota vidéo distant.
-    return this.animateImageLocally(image)
+    // Comportement historique Bestla : pour une commande texte, on génère d'abord
+    // une image avec le fournisseur image configuré (Cloudflare par défaut), puis
+    // on crée localement une courte vidéo MP4 animée avec FFmpeg.
+    const source = image ?? await this.generateImage(prompt)
+    return this.animateImageLocally(source)
   }
 
   async editVideo(prompt: string, video: { buffer: Buffer; mimetype: string }): Promise<{ buffer: Buffer; mimetype: string }> {
