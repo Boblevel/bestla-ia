@@ -602,6 +602,7 @@ export class MediaAiService {
     const width = portrait ? 480 : 832
     const negativePrompt = 'nsfw, nudity, explicit content, watermark, text, signature, subtitles, low quality, blurry, deformed, disfigured, static frame'
 
+    let sliderIndex = 0
     return parameters.map((raw, index) => {
       const parameter = record(raw)
       const name = stringValue(parameter?.parameter_name) ?? stringValue(parameter?.name) ?? stringValue(parameter?.label)
@@ -617,13 +618,14 @@ export class MediaAiService {
       const typeRecord = record(parameter?.type)
       const typeTitle = (stringValue(typeRecord?.title) ?? '').toLowerCase()
       const componentHint = `${component} ${label} ${pythonType} ${typeTitle}`
+      const sliderOrdinal = component === 'slider' ? sliderIndex++ : -1
 
       // Le composant Gradio est prioritaire : certaines versions ZeroGPU ont
       // déjà publié des parameter_name décalés après un redéploiement.
       if (component.includes('image') || componentHint.includes('imagedata')) return null
       if (lower === 'negative_prompt' || lower.includes('negative') || label.includes('negative')) return negativePrompt
       if (component === 'textbox' || /(^|_)prompt$/.test(lower) || lower === 'text' || lower === 'input_text' || label === 'prompt') return prompt
-      if (lower === 'aspect_ratio' || lower === 'aspect' || lower.includes('ratio') || label.includes('aspect')) return this.videoCanvas()
+      if (component === 'dropdown' || lower === 'aspect_ratio' || lower === 'aspect' || lower.includes('ratio') || label.includes('aspect')) return this.videoCanvas()
       if (lower === 'height') return height
       if (lower === 'width') return width
       if (lower === 'duration' || lower === 'duration_seconds' || lower.includes('second') || label.includes('duration')) return 5
@@ -632,13 +634,21 @@ export class MediaAiService {
       if (lower === 'seed') return 42
       if (lower === 'randomize_seed' || lower.includes('randomize')) return true
 
+      // Certaines versions du Space exposent seulement le type du composant et
+      // renvoient « Parameter has no default value » comme faux défaut.
+      // Dans ce schéma historique : slider 1 = durée, slider 2 = étapes.
+      if (component === 'slider') return sliderOrdinal === 0 ? 5 : sliderOrdinal === 1 ? 4 : 0
+      if (component === 'number') return 42
+      if (component === 'checkbox') return true
+
       const parameterDefault = parameter?.parameter_default
       const defaultValue = parameterDefault !== undefined
         ? parameterDefault
         : parameter
           ? (parameter['default'] ?? record(parameter.props)?.value ?? record(parameter.component_props)?.value)
           : undefined
-      return defaultValue !== undefined ? defaultValue : fallback[index] ?? null
+      const unusableDefault = typeof defaultValue === 'string' && /parameter has no default/i.test(defaultValue)
+      return defaultValue !== undefined && !unusableDefault ? defaultValue : fallback[index] ?? null
     })
   }
 
