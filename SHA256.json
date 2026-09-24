@@ -1,8 +1,8 @@
 {
-  "src/core/media-ai.ts": "ceb157294bf026c27290213885c1bb5249df49a7c9fc5697d570fc551158c03e",
+  "src/core/media-ai.ts": "e82eaba7779cbf504c9ba6fedad2813b46117ebefe9b717752c4f816826bb4de",
   "src/config.ts": "188730403c7e89cbd69d61e851a97da3dcab204c8e941544e9f5d36d5dad3413",
   "src/plugins/generative-media.ts": "a771ea72cdb87f46d7ff8bcc3dec5396abe7e5a2f3f6aa6db0ad89c2119320b0",
-  "test/v182-features.test.ts": "6874cf0b40fa73d6395d350c12a7c916eba8503d64f86d754f45792218bc6f0b",
+  "test/v182-features.test.ts": "2b69178f7ab60c8a1d8d1c94a95003645b5d2ad860867b8bef7b79bd8815e58d",
   ".env.example": "5706c28aefb9dc936155e34854a7c9b4584e76e19bf8be920847a66889aeea08",
   "env.example.media-archive": "706cccadb85e926ec49721527d88b19ec40fee0b1784b4f8c981593f55ac4d9b"
 }
