@@ -590,9 +590,18 @@ export class MediaAiService {
   private buildHuggingFaceVideoPayload(schema: unknown, prompt: string): unknown[] {
     const endpoint = record(schema)
     const parameters = Array.isArray(endpoint?.parameters) ? endpoint.parameters : []
-    // Wan 2.7 Free Video Generator : input_image, prompt, aspect_ratio, duration_seconds.
+    // API Wan actuellement publique : image optionnelle, prompt, ratio, durée.
+    // Certaines instances ZeroGPU peuvent encore exposer un ancien schéma Gradio
+    // avec davantage d'entrées. On s'adapte aux paramètres réellement annoncés
+    // par /gradio_api/info au lieu de supposer un nombre fixe de valeurs.
     const fallback = [null, prompt, this.videoCanvas(), 5]
     if (parameters.length === 0) return fallback
+
+    const portrait = this.config.mediaAi.videoAspectRatio === '9:16'
+    const height = portrait ? 832 : 480
+    const width = portrait ? 480 : 832
+    const negativePrompt = 'nsfw, nudity, explicit content, watermark, text, signature, subtitles, low quality, blurry, deformed, disfigured, static frame'
+
     return parameters.map((raw, index) => {
       const parameter = record(raw)
       const name = stringValue(parameter?.parameter_name) ?? stringValue(parameter?.name) ?? stringValue(parameter?.label)
@@ -600,7 +609,14 @@ export class MediaAiService {
       if (lower === 'input_image' || lower === 'image' || lower.includes('first')) return null
       if (/(^|_)prompt$/.test(lower) || lower === 'text' || lower === 'input_text') return prompt
       if (lower === 'aspect_ratio' || lower === 'aspect' || lower.includes('ratio')) return this.videoCanvas()
+      if (lower === 'height') return height
+      if (lower === 'width') return width
+      if (lower === 'negative_prompt' || lower.includes('negative')) return negativePrompt
       if (lower === 'duration' || lower === 'duration_seconds' || lower.includes('second')) return 5
+      if (lower === 'guidance_scale' || lower.includes('guidance')) return 0
+      if (lower === 'steps' || (lower.includes('inference') && lower.includes('step'))) return 4
+      if (lower === 'seed') return 42
+      if (lower === 'randomize_seed' || lower.includes('randomize')) return true
       const defaultValue = parameter ? (parameter['default'] ?? record(parameter.props)?.value ?? record(parameter.component_props)?.value) : undefined
       return defaultValue !== undefined ? defaultValue : fallback[index] ?? null
     })
@@ -736,10 +752,12 @@ export class MediaAiService {
 
     const timeoutMs = Math.min(this.config.mediaAi.videoTimeoutSeconds * 1_000, 360_000)
     const deadline = Date.now() + timeoutMs
-    const apiSegment = normalizedApiSegment(this.config.mediaAi.videoApiName)
-    // Wan 2.7 attend exactement : image optionnelle, prompt, aspect_ratio, duration_seconds.
-    // On envoie le prompt utilisateur tel quel avec le format vertical ou horizontal adapté à WhatsApp.
-    const requestBody = { data: this.buildHuggingFaceVideoPayload(undefined, text) }
+    const spaceInfo = await this.huggingFaceSpaceInfo()
+    const endpoint = this.resolveHuggingFaceEndpoint(spaceInfo)
+    const apiSegment = normalizedApiSegment(endpoint.apiName)
+    // Le Space Wan peut changer son schéma Gradio lors d'un redéploiement.
+    // On construit la requête depuis le schéma réellement exposé au moment de l'appel.
+    const requestBody = { data: this.buildHuggingFaceVideoPayload(endpoint.schema, text) }
     const routes = [
       `${this.config.mediaAi.videoSpace}/call/${apiSegment}`,
       `${this.config.mediaAi.videoSpace}/gradio_api/call/${apiSegment}`,
