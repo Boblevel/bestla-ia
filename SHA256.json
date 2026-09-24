@@ -1,8 +1,8 @@
 {
-  "src/core/media-ai.ts": "bc55fcd3bf4f9c833bada2f824a5f2c20d5b3f37afd0a0e65b675fc0da04e27a",
+  "src/core/media-ai.ts": "4a948d7819b5ab8b2fb3b957d0ca75a93aae8c6fc0179aa0f752517b36b64091",
   "src/config.ts": "f43c97d705ecc6bce9fecb662b6023e50507b18ad10e8cfdf9492988bb2c8182",
   "src/plugins/generative-media.ts": "a771ea72cdb87f46d7ff8bcc3dec5396abe7e5a2f3f6aa6db0ad89c2119320b0",
-  "test/v182-features.test.ts": "d48b6e290dd4763a964a41043b23e97897b286e90504fdc5d23726a5d8773ec0",
+  "test/v182-features.test.ts": "49d5e37509d7a18f1f0532f243a3b300596ffdef163ff819ff17cc0db388b14e",
   ".env.example": "4b46ab47a181b4413b87072dbd411d64b292255f13784b012bcb86db54a7d31c",
   "env.example.media-archive": "964529743462ae52693ea664a11402ef2fbefcf737fc45fa4d4a2e2c9c5ffb8c"
 }
