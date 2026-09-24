@@ -583,29 +583,24 @@ export class MediaAiService {
 
   private videoCanvas(): string {
     return this.config.mediaAi.videoAspectRatio === '9:16'
-      ? '544x960 · 9:16 fast'
-      : '960x544 · 16:9 fast'
+      ? '480x832'
+      : '832x480'
   }
 
   private buildHuggingFaceVideoPayload(schema: unknown, prompt: string): unknown[] {
     const endpoint = record(schema)
     const parameters = Array.isArray(endpoint?.parameters) ? endpoint.parameters : []
-    // Compte gratuit ZeroGPU : le conditioner réserve 45 s sur xlarge (= 90 crédits)
-    // puis le générateur à 14 étapes réserve ~102 s (= 204 crédits), soit ~294/300 crédits au total.
-    const fallback = [prompt, null, null, this.videoCanvas(), 5, 14, 42, false]
+    // Wan 2.7 Free Video Generator : input_image, prompt, aspect_ratio, duration_seconds.
+    const fallback = [null, prompt, this.videoCanvas(), 5]
     if (parameters.length === 0) return fallback
     return parameters.map((raw, index) => {
       const parameter = record(raw)
       const name = stringValue(parameter?.parameter_name) ?? stringValue(parameter?.name) ?? stringValue(parameter?.label)
       const lower = (name ?? '').toLowerCase()
+      if (lower === 'input_image' || lower === 'image' || lower.includes('first')) return null
       if (/(^|_)prompt$/.test(lower) || lower === 'text' || lower === 'input_text') return prompt
-      if (lower === 'image_path' || lower === 'image' || lower.includes('first')) return null
-      if (lower === 'last_image_path' || lower === 'last_image' || lower.includes('last')) return null
-      if (lower === 'canvas') return this.videoCanvas()
-      if (lower === 'duration' || lower === 'duration_seconds') return 5
-      if (lower === 'steps' || (lower.includes('inference') && lower.includes('step'))) return 26
-      if (lower === 'seed') return 42
-      if (lower === 'upsample' || lower.includes('rewrite_prompt')) return false
+      if (lower === 'aspect_ratio' || lower === 'aspect' || lower.includes('ratio')) return this.videoCanvas()
+      if (lower === 'duration' || lower === 'duration_seconds' || lower.includes('second')) return 5
       const defaultValue = parameter ? (parameter['default'] ?? record(parameter.props)?.value ?? record(parameter.component_props)?.value) : undefined
       return defaultValue !== undefined ? defaultValue : fallback[index] ?? null
     })
@@ -742,8 +737,8 @@ export class MediaAiService {
     const timeoutMs = Math.min(this.config.mediaAi.videoTimeoutSeconds * 1_000, 360_000)
     const deadline = Date.now() + timeoutMs
     const apiSegment = normalizedApiSegment(this.config.mediaAi.videoApiName)
-    // MiniMax-H3 attend exactement : prompt, image, dernière image, canvas, durée, étapes, seed, upsample.
-    // On envoie le prompt utilisateur en première position, sans le remplacer ni le détourner.
+    // Wan 2.7 attend exactement : image optionnelle, prompt, aspect_ratio, duration_seconds.
+    // On envoie le prompt utilisateur tel quel avec le format vertical ou horizontal adapté à WhatsApp.
     const requestBody = { data: this.buildHuggingFaceVideoPayload(undefined, text) }
     const routes = [
       `${this.config.mediaAi.videoSpace}/call/${apiSegment}`,

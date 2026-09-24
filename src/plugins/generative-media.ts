@@ -117,7 +117,6 @@ export const generativeMediaCommands: BotCommand[] = [
       if (!service) return
       if (!ctx.argText.trim()) return void (await ctx.reply(`Utilisation : ${ctx.prefix}generervideo Plan cinématique vertical d’une boutique moderne`))
       try {
-        await ctx.reply('🎬 Génération vidéo en cours… Le mode ZeroGPU rapide est utilisé et peut prendre quelques minutes.')
         const generated = await service.generateVideo(ctx.argText)
         await ctx.send({
           video: generated.buffer,

@@ -60,9 +60,9 @@ const schema = z.object({
   MEDIA_AI_IMAGE_EDIT_MODEL: z.string().default('gemini-3.1-flash-image'),
   MEDIA_AI_IMAGE_ASPECT_RATIO: z.string().default('1:1'),
   MEDIA_AI_IMAGE_SIZE: z.enum(['512px', '1K', '2K', '4K']).default('1K'),
-  MEDIA_AI_VIDEO_MODEL: z.string().default('multimodalart/minimax-h3'),
-  MEDIA_AI_VIDEO_SPACE: z.string().default('https://multimodalart-minimax-h3.hf.space'),
-  MEDIA_AI_VIDEO_API_NAME: z.string().default('/generate'),
+  MEDIA_AI_VIDEO_MODEL: z.string().default('FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers'),
+  MEDIA_AI_VIDEO_SPACE: z.string().default('https://alexcheng0072-wan27-free-video-generator.hf.space'),
+  MEDIA_AI_VIDEO_API_NAME: z.string().default('/generate_video'),
   MEDIA_AI_VIDEO_ASPECT_RATIO: z.enum(['9:16', '16:9']).default('9:16'),
   MEDIA_AI_VIDEO_TIMEOUT_SECONDS: z.coerce.number().int().min(60).max(1_800).default(900),
 }).superRefine((value, ctx) => {
@@ -133,17 +133,17 @@ function normalizeGeminiTextModel(value: string): string {
 
 function normalizeHuggingFaceVideoModel(value: string): string {
   const model = value.trim()
-  return model || 'multimodalart/minimax-h3'
+  return model || 'FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers'
 }
 
 function normalizeHuggingFaceSpaceUrl(value: string): string {
   const url = value.trim().replace(/\/+$/, '')
-  return url || 'https://multimodalart-minimax-h3.hf.space'
+  return url || 'https://alexcheng0072-wan27-free-video-generator.hf.space'
 }
 
 function normalizeHuggingFaceApiName(value: string): string {
   const apiName = value.trim()
-  if (!apiName) return '/generate'
+  if (!apiName) return '/generate_video'
   return apiName.startsWith('/') ? apiName : `/${apiName}`
 }
 
