@@ -131,20 +131,30 @@ function normalizeGeminiTextModel(value: string): string {
   return model
 }
 
+const LEGACY_HUGGING_FACE_VIDEO_MODEL = 'multimodalart/minimax-h3'
+const LEGACY_HUGGING_FACE_VIDEO_SPACE = 'https://multimodalart-minimax-h3.hf.space'
+const LEGACY_HUGGING_FACE_VIDEO_API_NAME = '/generate'
+const WAN_VIDEO_MODEL = 'FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers'
+const WAN_VIDEO_SPACE = 'https://alexcheng0072-wan27-free-video-generator.hf.space'
+const WAN_VIDEO_API_NAME = '/generate_video'
+
 function normalizeHuggingFaceVideoModel(value: string): string {
   const model = value.trim()
-  return model || 'FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers'
+  if (!model || model === LEGACY_HUGGING_FACE_VIDEO_MODEL) return WAN_VIDEO_MODEL
+  return model
 }
 
 function normalizeHuggingFaceSpaceUrl(value: string): string {
   const url = value.trim().replace(/\/+$/, '')
-  return url || 'https://alexcheng0072-wan27-free-video-generator.hf.space'
+  if (!url || url === LEGACY_HUGGING_FACE_VIDEO_SPACE) return WAN_VIDEO_SPACE
+  return url
 }
 
 function normalizeHuggingFaceApiName(value: string): string {
-  const apiName = value.trim()
-  if (!apiName) return '/generate_video'
-  return apiName.startsWith('/') ? apiName : `/${apiName}`
+  const rawApiName = value.trim()
+  const apiName = rawApiName ? (rawApiName.startsWith('/') ? rawApiName : `/${rawApiName}`) : ''
+  if (!apiName || apiName === LEGACY_HUGGING_FACE_VIDEO_API_NAME) return WAN_VIDEO_API_NAME
+  return apiName
 }
 
 export interface AppConfig {
