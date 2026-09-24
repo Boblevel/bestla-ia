@@ -606,18 +606,38 @@ export class MediaAiService {
       const parameter = record(raw)
       const name = stringValue(parameter?.parameter_name) ?? stringValue(parameter?.name) ?? stringValue(parameter?.label)
       const lower = (name ?? '').toLowerCase()
-      if (lower === 'input_image' || lower === 'image' || lower.includes('first')) return null
-      if (/(^|_)prompt$/.test(lower) || lower === 'text' || lower === 'input_text') return prompt
-      if (lower === 'aspect_ratio' || lower === 'aspect' || lower.includes('ratio')) return this.videoCanvas()
+      const component = (stringValue(parameter?.component) ?? '').toLowerCase()
+      const label = (stringValue(parameter?.label) ?? '').toLowerCase()
+      const pythonTypeRecord = record(parameter?.python_type)
+      const pythonType = (
+        stringValue(pythonTypeRecord?.type)
+        ?? stringValue(parameter?.python_type)
+        ?? ''
+      ).toLowerCase()
+      const typeRecord = record(parameter?.type)
+      const typeTitle = (stringValue(typeRecord?.title) ?? '').toLowerCase()
+      const componentHint = `${component} ${label} ${pythonType} ${typeTitle}`
+
+      // Le composant Gradio est prioritaire : certaines versions ZeroGPU ont
+      // déjà publié des parameter_name décalés après un redéploiement.
+      if (component.includes('image') || componentHint.includes('imagedata')) return null
+      if (lower === 'negative_prompt' || lower.includes('negative') || label.includes('negative')) return negativePrompt
+      if (component === 'textbox' || /(^|_)prompt$/.test(lower) || lower === 'text' || lower === 'input_text' || label === 'prompt') return prompt
+      if (lower === 'aspect_ratio' || lower === 'aspect' || lower.includes('ratio') || label.includes('aspect')) return this.videoCanvas()
       if (lower === 'height') return height
       if (lower === 'width') return width
-      if (lower === 'negative_prompt' || lower.includes('negative')) return negativePrompt
-      if (lower === 'duration' || lower === 'duration_seconds' || lower.includes('second')) return 5
+      if (lower === 'duration' || lower === 'duration_seconds' || lower.includes('second') || label.includes('duration')) return 5
       if (lower === 'guidance_scale' || lower.includes('guidance')) return 0
       if (lower === 'steps' || (lower.includes('inference') && lower.includes('step'))) return 4
       if (lower === 'seed') return 42
       if (lower === 'randomize_seed' || lower.includes('randomize')) return true
-      const defaultValue = parameter ? (parameter['default'] ?? record(parameter.props)?.value ?? record(parameter.component_props)?.value) : undefined
+
+      const parameterDefault = parameter?.parameter_default
+      const defaultValue = parameterDefault !== undefined
+        ? parameterDefault
+        : parameter
+          ? (parameter['default'] ?? record(parameter.props)?.value ?? record(parameter.component_props)?.value)
+          : undefined
       return defaultValue !== undefined ? defaultValue : fallback[index] ?? null
     })
   }
